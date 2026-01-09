@@ -97,4 +97,23 @@ class MapController(
         model.addAttribute("naverMapClientId", naverMapClientId)
         return "h3_redis_region_sd6"
     }
+
+    // Region Count (고정 카운트)
+    @GetMapping("/region-count/emd")
+    fun regionCountEmd(model: Model): String {
+        model.addAttribute("naverMapClientId", naverMapClientId)
+        return "region_count_emd"
+    }
+
+    @GetMapping("/region-count/sgg")
+    fun regionCountSgg(model: Model): String {
+        model.addAttribute("naverMapClientId", naverMapClientId)
+        return "region_count_sgg"
+    }
+
+    @GetMapping("/region-count/sd")
+    fun regionCountSd(model: Model): String {
+        model.addAttribute("naverMapClientId", naverMapClientId)
+        return "region_count_sd"
+    }
 }

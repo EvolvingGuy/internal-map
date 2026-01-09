@@ -1,63 +1,96 @@
 package com.sanghoon.jvm_jst.h3
 
-import com.sanghoon.jvm_jst.BoundaryRegionCache
-import com.sanghoon.jvm_jst.RegionLevel
+import com.sanghoon.jvm_jst.region.RegionNameCache
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 @Service
 class RegionCountService(
-    private val regionCountRepository: RegionCountRepository
+    private val regionCountCache: RegionCountCache,
+    private val regionNameCache: RegionNameCache
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun getEmdCounts(bbox: BBox): RegionCountResponse {
-        return getCounts(bbox, RegionLevel.DONG, "emd")
-    }
-
-    fun getSggCounts(bbox: BBox): RegionCountResponse {
-        return getCounts(bbox, RegionLevel.SIGUNGU, "sgg")
-    }
-
-    fun getSdCounts(bbox: BBox): RegionCountResponse {
-        return getCounts(bbox, RegionLevel.SIDO, "sd")
-    }
-
-    private fun getCounts(bbox: BBox, regionLevel: RegionLevel, dbLevel: String): RegionCountResponse {
         val startTime = System.currentTimeMillis()
 
-        // 1. bbox와 겹치는 행정구역 찾기
-        val regions = BoundaryRegionCache.findIntersecting(
-            bbox.swLng, bbox.swLat, bbox.neLng, bbox.neLat, regionLevel
-        )
-        val regionCodes = regions.map { it.regionCode }
+        // bbox 내 데이터 조회 (캐시에서 좌표 필터링)
+        val data = regionCountCache.getEmdByBbox(bbox)
 
-        if (regionCodes.isEmpty()) {
+        if (data.isEmpty()) {
             return RegionCountResponse(emptyList(), 0, 0)
         }
 
-        // 2. DB 조회
-        val rows = regionCountRepository.findByLevelAndCodes(dbLevel, regionCodes)
+        // 행정구역명 조회
+        val regionNames = regionNameCache.getNames(data.keys)
 
-        // 3. 변환
-        val counts = rows.map { row ->
-            val code = row[0] as String
-            val cnt = (row[1] as Number).toInt()
-            val lat = (row[2] as Number).toDouble()
-            val lng = (row[3] as Number).toDouble()
-            val region = regions.find { it.regionCode == code }
-
+        // 결과 변환
+        val counts = data.map { (code, d) ->
             RegionCountDto(
                 regionCode = code,
-                regionName = region?.regionKoreanName ?: "",
-                cnt = cnt,
-                centerLat = lat,
-                centerLng = lng
+                regionName = regionNames[code] ?: "",
+                cnt = d.cnt,
+                centerLat = d.centerLat,
+                centerLng = d.centerLng
             )
         }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[RegionCount] level=$dbLevel, regions=${regionCodes.size}, found=${counts.size}, time=${elapsed}ms")
+        log.info("[RegionCount] level=emd, found={}, time={}ms", counts.size, elapsed)
+
+        return RegionCountResponse(counts, counts.sumOf { it.cnt }, elapsed)
+    }
+
+    fun getSggCounts(bbox: BBox): RegionCountResponse {
+        val startTime = System.currentTimeMillis()
+
+        val data = regionCountCache.getSggByBbox(bbox)
+
+        if (data.isEmpty()) {
+            return RegionCountResponse(emptyList(), 0, 0)
+        }
+
+        val regionNames = regionNameCache.getNames(data.keys)
+
+        val counts = data.map { (code, d) ->
+            RegionCountDto(
+                regionCode = code,
+                regionName = regionNames[code] ?: "",
+                cnt = d.cnt,
+                centerLat = d.centerLat,
+                centerLng = d.centerLng
+            )
+        }
+
+        val elapsed = System.currentTimeMillis() - startTime
+        log.info("[RegionCount] level=sgg, found={}, time={}ms", counts.size, elapsed)
+
+        return RegionCountResponse(counts, counts.sumOf { it.cnt }, elapsed)
+    }
+
+    fun getSdCounts(bbox: BBox): RegionCountResponse {
+        val startTime = System.currentTimeMillis()
+
+        val data = regionCountCache.getSdByBbox(bbox)
+
+        if (data.isEmpty()) {
+            return RegionCountResponse(emptyList(), 0, 0)
+        }
+
+        val regionNames = regionNameCache.getNames(data.keys)
+
+        val counts = data.map { (code, d) ->
+            RegionCountDto(
+                regionCode = code,
+                regionName = regionNames[code] ?: "",
+                cnt = d.cnt,
+                centerLat = d.centerLat,
+                centerLng = d.centerLng
+            )
+        }
+
+        val elapsed = System.currentTimeMillis() - startTime
+        log.info("[RegionCount] level=sd, found={}, time={}ms", counts.size, elapsed)
 
         return RegionCountResponse(counts, counts.sumOf { it.cnt }, elapsed)
     }
