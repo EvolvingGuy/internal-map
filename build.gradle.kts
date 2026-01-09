@@ -40,6 +40,7 @@ dependencies {
     implementation("org.apache.commons:commons-csv:1.12.0")
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
+    implementation("com.uber:h3:4.1.1")
 }
 
 kotlin {

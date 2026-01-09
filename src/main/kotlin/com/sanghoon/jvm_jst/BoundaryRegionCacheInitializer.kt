@@ -19,16 +19,16 @@ class BoundaryRegionCacheInitializer(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun run(args: ApplicationArguments) {
-        log.info("BoundaryRegionCache 초기화 시작")
-        val startTime = System.currentTimeMillis()
-
-        BoundaryRegionCache.initialize()
-
-        val elapsed = System.currentTimeMillis() - startTime
-        log.info("BoundaryRegionCache 초기화 완료: ${BoundaryRegionCache.getRegionCount()}개 로드, ${elapsed}ms 소요")
-        log.info("레벨별 개수: ${BoundaryRegionCache.getCountByLevel()}")
-
-        // 초기화 완료 이벤트 발행
-        eventPublisher.publishEvent(BoundaryRegionCacheReadyEvent(this))
+//        log.info("BoundaryRegionCache 초기화 시작")
+//        val startTime = System.currentTimeMillis()
+//
+//        BoundaryRegionCache.initialize()
+//
+//        val elapsed = System.currentTimeMillis() - startTime
+//        log.info("BoundaryRegionCache 초기화 완료: ${BoundaryRegionCache.getRegionCount()}개 로드, ${elapsed}ms 소요")
+//        log.info("레벨별 개수: ${BoundaryRegionCache.getCountByLevel()}")
+//
+//        // 초기화 완료 이벤트 발행
+//        eventPublisher.publishEvent(BoundaryRegionCacheReadyEvent(this))
     }
 }
