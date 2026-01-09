@@ -116,4 +116,11 @@ class MapController(
         model.addAttribute("naverMapClientId", naverMapClientId)
         return "region_count_sd"
     }
+
+    // 고정 그리드 (300m)
+    @GetMapping("/h3/fixed-grid")
+    fun h3FixedGrid(model: Model): String {
+        model.addAttribute("naverMapClientId", naverMapClientId)
+        return "h3_fixed_grid"
+    }
 }

@@ -52,4 +52,12 @@ class H3RedisController(
     fun getSd6RegionAggregation(request: H3AggRequest): H3RegionResponse {
         return h3RedisService.getSd6RegionAggregation(request.toBBox())
     }
+
+    @GetMapping("/fixed-grid")
+    fun getFixedGridAggregation(
+        request: H3AggRequest,
+        @RequestParam(defaultValue = "300") gridSize: Double
+    ): H3FixedGridResponse {
+        return h3RedisService.getFixedGridAggregation(request.toBBox(), gridSize)
+    }
 }

@@ -532,10 +532,104 @@ class H3RedisService(
         return H3RegionResponse(result, result.sumOf { it.cnt }, elapsed)
     }
 
+    /**
+     * 고정 미터 단위 그리드 집계 - res 9 (JVM 캐시)
+     * 뷰포트를 gridSizeMeters 단위 정사각형으로 나눠서 집계
+     */
+    fun getFixedGridAggregation(bbox: BBox, gridSizeMeters: Double = 300.0): H3FixedGridResponse {
+        val startTime = System.currentTimeMillis()
+
+        // 뷰포트 가로 크기 체크 (100km 제한)
+        val centerLat = (bbox.swLat + bbox.neLat) / 2
+        val lngDegPerMeter = 1.0 / (111000.0 * kotlin.math.cos(Math.toRadians(centerLat)))
+        val viewportWidthMeters = (bbox.neLng - bbox.swLng) / lngDegPerMeter
+
+        if (viewportWidthMeters > 100000) {
+            return H3FixedGridResponse(
+                cells = emptyList(),
+                totalCount = 0,
+                elapsedMs = 0,
+                error = "뷰포트 가로가 100km를 초과합니다. 더 가까이 확대해주세요."
+            )
+        }
+
+        // 1. bbox → H3 인덱스 (res 9)
+        val h3Indexes = bboxToH3Indexes(bbox, RESOLUTION_EMD9)
+
+        if (h3Indexes.isEmpty()) {
+            return H3FixedGridResponse(emptyList(), 0, 0, null)
+        }
+
+        // 2. JVM 캐시 조회
+        val cachedData = h3Emd9Cache.get(h3Indexes)
+
+        // 3. 그리드 크기 계산 (도 단위)
+        val latDegPerMeter = 1.0 / 111000.0
+        val gridLatSize = gridSizeMeters * latDegPerMeter
+        val gridLngSize = gridSizeMeters * lngDegPerMeter
+
+        // 4. H3 셀별로 합산 후 그리드에 할당
+        val gridData = mutableMapOf<String, FixedGridAggData>()
+
+        for ((h3Index, bjdongList) in cachedData) {
+            for (data in bjdongList) {
+                if (data.cnt == 0) continue
+                val lat = data.sumLat / data.cnt
+                val lng = data.sumLng / data.cnt
+
+                // bbox 범위 체크
+                if (lat < bbox.swLat || lat > bbox.neLat || lng < bbox.swLng || lng > bbox.neLng) continue
+
+                // 그리드 셀 계산
+                val gridRow = kotlin.math.floor((lat - bbox.swLat) / gridLatSize).toInt()
+                val gridCol = kotlin.math.floor((lng - bbox.swLng) / gridLngSize).toInt()
+                val gridKey = "${gridRow}_${gridCol}"
+
+                val existing = gridData[gridKey]
+                if (existing != null) {
+                    existing.cnt += data.cnt
+                    existing.sumLat += data.sumLat
+                    existing.sumLng += data.sumLng
+                } else {
+                    gridData[gridKey] = FixedGridAggData(
+                        row = gridRow,
+                        col = gridCol,
+                        cnt = data.cnt,
+                        sumLat = data.sumLat,
+                        sumLng = data.sumLng
+                    )
+                }
+            }
+        }
+
+        // 5. 결과 변환 (그리드 셀 중심점)
+        val result = gridData.map { (_, data) ->
+            H3FixedGridCell(
+                row = data.row,
+                col = data.col,
+                cnt = data.cnt,
+                lat = data.sumLat / data.cnt,
+                lng = data.sumLng / data.cnt,
+                // 그리드 셀 경계 (디버깅/시각화용)
+                gridSwLat = bbox.swLat + data.row * gridLatSize,
+                gridSwLng = bbox.swLng + data.col * gridLngSize,
+                gridNeLat = bbox.swLat + (data.row + 1) * gridLatSize,
+                gridNeLng = bbox.swLng + (data.col + 1) * gridLngSize
+            )
+        }
+
+        val elapsed = System.currentTimeMillis() - startTime
+        log.info("[H3 FixedGrid] gridSize={}m, h3={}, grids={}, time={}ms",
+            gridSizeMeters.toInt(), h3Indexes.size, result.size, elapsed)
+
+        return H3FixedGridResponse(result, result.sumOf { it.cnt }, elapsed, null)
+    }
+
     private class BjdongAggData(var cnt: Int, var sumLat: Double, var sumLng: Double)
     private class SggAggData(var cnt: Int, var sumLat: Double, var sumLng: Double)
     private class SdAggData(var cnt: Int, var sumLat: Double, var sumLng: Double)
     private class GridAggData(var cnt: Int, var sumLat: Double, var sumLng: Double)
+    private class FixedGridAggData(val row: Int, val col: Int, var cnt: Int, var sumLat: Double, var sumLng: Double)
 
     // Region 직렬화: [4 bytes count][반복: 8 bytes bjdongCd + 4 bytes cnt + 8 bytes sumLat + 8 bytes sumLng]
     private fun serializeRegion(list: List<BjdongCellData>): ByteArray {
@@ -695,4 +789,23 @@ data class BjdongCellData(
     val cnt: Int,
     val sumLat: Double,
     val sumLng: Double
+)
+
+data class H3FixedGridCell(
+    val row: Int,
+    val col: Int,
+    val cnt: Int,
+    val lat: Double,
+    val lng: Double,
+    val gridSwLat: Double,
+    val gridSwLng: Double,
+    val gridNeLat: Double,
+    val gridNeLng: Double
+)
+
+data class H3FixedGridResponse(
+    val cells: List<H3FixedGridCell>,
+    val totalCount: Int,
+    val elapsedMs: Long,
+    val error: String?
 )
