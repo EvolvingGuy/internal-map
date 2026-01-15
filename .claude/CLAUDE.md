@@ -88,13 +88,46 @@
       - miss 케이스 DB 조회. 캐시 비동기 set
       - 구해진 것 안에서 emd, sgg, sd 코드로 그룹바이하여 합산
       - 응답
+  - FE 뷰포트 바둑판식 그리드 그루핑 (읍면동 res 사용)
+    - 최종적으로 결정된 h3 Res table을 사용하는 형태가 될 것임. 현재는 emd_10,sgg_07,sd_05를 사용  
+    - 경로 및 API 규칙
+      - page) /page/pnu/agg/grid/{h3_index_res}
+      - api) /api/pnu/agg/grid/{h3_index_res}
+    - FE 요청 파라미터 추가
+      - naver map zoom level
+      - web viewport width & height
+    - 대상 테이블 & 네이버 줌 레벨 매핑
+      - r3_pnu_agg_emd_10 & naver map zoom level 16~22 와 매핑
+      - r3_pnu_agg_sgg_07 & naver map zoom level 12~15 와 매핑
+      - r3_pnu_agg_sd_05  & naver map zoom level 0~11 와 매핑
+    - API 로직 플로우 (테이블 그대로 조회하는 것과 캐시 레이어 공유함)
+      - FE 요청에 따른 비박스로부터 해상도 450px 단위로 바독판 그리드 생성, 분할
+      - FE 요청에 따른 h3 index 구하여 데이터 조회 (캐시와 디비 오가는 거 동일한 정책으로)
+      - 구해진 각 h3 index 데이터들의 중심점을 포함하는 바둑판 그리드에 누적
+        - 중심점이 포함되는 h3 index 들의 위경도를 다시 합산하여 바둑판 클러스터 마커의 위치를 결정
+  - FE 필지 카운트
+    - 최종적으로 결정된 h3 Res table을 사용하는 형태가 될 것임. 현재는 emd_10,sgg_07,sd_05를 사용
+    - 뷰포트에 해당하는 필지의 총 카운팅. h3를 사용한 시점부터 100% 정확도는 요구하지 않음
+    - 경로 및 API 규칙
+      - page) /page/pnu/agg/count/{h3_index_res}
+      - api) /api/pnu/agg/count/{h3_index_res}
+    - FE 요청 파라미터 추가
+      - naver map zoom level
+    - 대상 테이블 & 네이버 줌 레벨 매핑
+      - r3_pnu_agg_emd_10 & naver map zoom level 16~22 와 매핑
+      - r3_pnu_agg_sgg_07 & naver map zoom level 12~15 와 매핑
+      - r3_pnu_agg_sd_05  & naver map zoom level 0~11 와 매핑
+    - API 로직 플로우 (테이블 그대로 조회하는 것과 캐시 레이어 공유함)
+      - FE 요청에 따른 h3 index 구하여 데이터 조회 (캐시와 디비 오가는 거 동일한 정책으로)
+      - 구해진 것들의 sum 값만 합산하여 응답
+    - FE 표시 형태
+      - info 패널에 표시
   - FE 뷰포트에 따른 고정형 행정구역 그루핑
     - 경로 및 API 규칙
       - page) /page/pnu/agg/static/{region_level}
       - api) /api/pnu/agg/static/{region_level}
     - 대상 테이블
-      - r3_pnu_agg_static_region
-      - r3_pnu_agg_emd_09
+      - r3_pnu_agg_emd_10
       - r3_pnu_agg_sgg_07
       - r3_pnu_agg_sd_05
     - API 로직 플로우
@@ -153,7 +186,10 @@
   │   → 고유 region_code별 (cnt, center) 반환                           │
   └─────────────────────────────────────────────────────────────────────┘
 
-
+### 화면 서클 방식
+- 바둑판 그리드에만 해당 하는 규칙
+  - 카운트에 따라 크고 작고의 비를 결정해줄 것
+  - 다만 그 min, max를 적절히 넣어서 사용에 문제가 되지 않도록 설정
 
 ### Table DDL
 CREATE TABLE manage.r3_pnu_agg_emd_11

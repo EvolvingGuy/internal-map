@@ -268,3 +268,67 @@ class PnuAggStaticPageController(
         return "pnu/static"
     }
 }
+
+/**
+ * PNU Agg 그리드 API 컨트롤러
+ */
+@RestController
+@RequestMapping("/api/pnu/agg")
+class PnuAggGridApiController(
+    private val gridService: PnuAggGridService
+) {
+    @GetMapping("/grid")
+    fun getGrid(
+        request: AggRequest,
+        @RequestParam zoomLevel: Int,
+        @RequestParam viewportWidth: Int,
+        @RequestParam viewportHeight: Int
+    ): GridResponse = gridService.getGrid(request.toBBox(), zoomLevel, viewportWidth, viewportHeight)
+}
+
+/**
+ * 페이지 컨트롤러 - 그리드
+ */
+@Controller
+@RequestMapping("/page/pnu/agg")
+class PnuAggGridPageController(
+    @Value("\${naver.map.client-id}") private val naverMapClientId: String
+) {
+    @GetMapping("/grid")
+    fun grid(model: Model): String {
+        model.addAttribute("naverMapClientId", naverMapClientId)
+        model.addAttribute("title", "PNU Grid")
+        return "pnu/grid"
+    }
+}
+
+/**
+ * PNU Agg 카운트 API 컨트롤러
+ */
+@RestController
+@RequestMapping("/api/pnu/agg")
+class PnuAggCountApiController(
+    private val countService: PnuAggCountService
+) {
+    @GetMapping("/count")
+    fun getCount(
+        request: AggRequest,
+        @RequestParam zoomLevel: Int
+    ): CountResponse = countService.getCount(request.toBBox(), zoomLevel)
+}
+
+/**
+ * 페이지 컨트롤러 - 카운트
+ */
+@Controller
+@RequestMapping("/page/pnu/agg")
+class PnuAggCountPageController(
+    @Value("\${naver.map.client-id}") private val naverMapClientId: String
+) {
+    @GetMapping("/count")
+    fun count(model: Model): String {
+        model.addAttribute("naverMapClientId", naverMapClientId)
+        model.addAttribute("title", "PNU Count")
+        return "pnu/count"
+    }
+}
