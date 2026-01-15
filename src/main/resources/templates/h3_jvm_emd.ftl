@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>H3 Redis - 시군구 집계 (res 8)</title>
+    <title>H3 Redis - 읍면동</title>
     <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,8 +27,8 @@
 <body>
     <div id="map"></div>
     <div id="info">
-        <h3>H3 Redis - 시군구 집계 (res 8)</h3>
-        <div>시군구: <span id="regionCount">0</span>개</div>
+        <h3>H3 Redis - 읍면동</h3>
+        <div>H3 셀: <span id="cellCount">0</span>개</div>
         <div>총 PNU: <span id="pnuCount">0</span>개</div>
         <div>응답시간: <span id="elapsed">0</span>ms</div>
     </div>
@@ -36,7 +36,7 @@
     <script>
         const map = new naver.maps.Map('map', {
             center: new naver.maps.LatLng(37.5665, 126.9780),
-            zoom: 12
+            zoom: 18
         });
 
         let debounceTimer = null;
@@ -54,51 +54,62 @@
                 neLng: ne.lng(),
                 neLat: ne.lat()
             });
-            fetch(`/api/h3/redis/region/sgg8?${r"${params}"}`)
+            fetch(`/api/h3/jvm/emd?${r"${params}"}`)
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('regionCount').textContent = data.regions.length.toLocaleString();
+                    document.getElementById('cellCount').textContent = data.cells.length.toLocaleString();
                     document.getElementById('pnuCount').textContent = data.totalCount.toLocaleString();
                     document.getElementById('elapsed').textContent = data.elapsedMs;
-                    drawRegions(data.regions);
+                    drawCells(data.cells);
                 })
                 .catch(err => console.error('fetch error:', err));
         }
 
-        function drawRegions(regions) {
+        function drawCells(cells) {
             if (pendingDraw) cancelAnimationFrame(pendingDraw);
 
             pendingDraw = requestAnimationFrame(() => {
                 const activeKeys = new Set();
 
-                for (const region of regions) {
-                    if (region.cnt === 0) continue;
-                    activeKeys.add(region.bjdongCd);
+                for (const cell of cells) {
+                    if (cell.cnt === 0) continue;
+                    activeKeys.add(cell.h3Index);
 
-                    const center = new naver.maps.LatLng(region.lat, region.lng);
-                    const existing = overlayMap.get(region.bjdongCd);
+                    const center = new naver.maps.LatLng(cell.lat, cell.lng);
+                    const existing = overlayMap.get(cell.h3Index);
 
                     if (existing) {
+                        existing.circle.setCenter(center);
                         existing.marker.setPosition(center);
                         existing.marker.setIcon({
-                            content: buildLabelHtml(region.cnt, region.regionName || region.bjdongCd),
+                            content: buildLabelHtml(cell.cnt),
                             anchor: new naver.maps.Point(0, 0)
                         });
                     } else {
+                        const circle = new naver.maps.Circle({
+                            map: map,
+                            center: center,
+                            radius: 66,
+                            fillColor: '#f97316',
+                            fillOpacity: 0.4,
+                            strokeColor: '#ea580c',
+                            strokeWeight: 1
+                        });
                         const marker = new naver.maps.Marker({
                             map: map,
                             position: center,
                             icon: {
-                                content: buildLabelHtml(region.cnt, region.regionName || region.bjdongCd),
+                                content: buildLabelHtml(cell.cnt),
                                 anchor: new naver.maps.Point(0, 0)
                             }
                         });
-                        overlayMap.set(region.bjdongCd, { marker });
+                        overlayMap.set(cell.h3Index, { circle, marker });
                     }
                 }
 
-                for (const [key, { marker }] of overlayMap) {
+                for (const [key, { circle, marker }] of overlayMap) {
                     if (!activeKeys.has(key)) {
+                        circle.setMap(null);
                         marker.setMap(null);
                         overlayMap.delete(key);
                     }
@@ -108,9 +119,9 @@
             });
         }
 
-        function buildLabelHtml(count, regionName) {
-            return '<div style="position:relative;"><div style="background:#ea580c;color:#fff;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);text-align:center;">' +
-                regionName + '<br>' + count.toLocaleString() + '</div></div>';
+        function buildLabelHtml(count) {
+            return '<div style="position:relative;"><div style="background:#ea580c;color:#fff;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);">' +
+                count.toLocaleString() + '</div></div>';
         }
 
         function onMapIdle() {

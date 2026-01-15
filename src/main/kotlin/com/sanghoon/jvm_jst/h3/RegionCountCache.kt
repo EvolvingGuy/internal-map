@@ -19,7 +19,6 @@ class RegionCountCache(
     @Volatile
     private var loaded = false
 
-    @PostConstruct
     fun init() {
         Thread {
             log.info("RegionCountCache 프리로드 시작")
@@ -44,8 +43,14 @@ class RegionCountCache(
 
                 loaded = true
                 val elapsed = System.currentTimeMillis() - startTime
-                log.info("RegionCountCache 프리로드 완료: emd={}개, sgg={}개, sd={}개, 총 {}ms",
-                    emdCache.size, sggCache.size, sdCache.size, elapsed)
+
+                // 용량 계산 (엔트리당 약 112 bytes: 키 40 + 값 40 + 맵 오버헤드 32)
+                val bytesPerEntry = 112
+                val totalEntries = emdCache.size + sggCache.size + sdCache.size
+                val estimatedMB = String.format("%.2f", (totalEntries * bytesPerEntry) / (1024.0 * 1024.0))
+
+                log.info("RegionCountCache 프리로드 완료: emd={}개, sgg={}개, sd={}개, 총 {}개, 약 {}MB, {}ms",
+                    emdCache.size, sggCache.size, sdCache.size, totalEntries, estimatedMB, elapsed)
             } catch (e: Exception) {
                 log.error("RegionCountCache 프리로드 실패", e)
             }

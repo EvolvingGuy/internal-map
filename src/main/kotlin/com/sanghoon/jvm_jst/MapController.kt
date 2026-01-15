@@ -56,46 +56,46 @@ class MapController(
     }
 
     // H3 Redis 캐시 지도
-    @GetMapping("/h3/redis/emd")
+    @GetMapping("/h3/jvm/emd")
     fun h3RedisEmd(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        return "h3_redis_emd"
+        return "h3_jvm_emd"
     }
 
-    @GetMapping("/h3/redis/region/emd")
+    @GetMapping("/h3/jvm/region/emd")
     fun h3RedisRegionEmd(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        return "h3_redis_region_emd"
+        return "h3_jvm_region_emd"
     }
 
-    @GetMapping("/h3/redis/region/emd9")
-    fun h3RedisRegionEmd9(model: Model): String {
+    @GetMapping("/h3/jvm/region/emd10")
+    fun h3RedisRegionEmd10(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        return "h3_redis_region_emd9"
+        return "h3_jvm_region_emd10"
     }
 
-    @GetMapping("/h3/redis/cell/emd9")
-    fun h3RedisCellEmd9(model: Model): String {
+    @GetMapping("/h3/jvm/cell/emd10")
+    fun h3RedisCellEmd10(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        return "h3_redis_cell_emd9"
+        return "h3_jvm_cell_emd10"
     }
 
-    @GetMapping("/h3/redis/grid/emd9")
-    fun h3RedisGridEmd9(model: Model): String {
+    @GetMapping("/h3/jvm/grid/emd10")
+    fun h3RedisGridEmd10(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        return "h3_redis_grid_emd9"
+        return "h3_jvm_grid_emd10"
     }
 
-    @GetMapping("/h3/redis/region/sgg8")
+    @GetMapping("/h3/jvm/region/sgg8")
     fun h3RedisRegionSgg8(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        return "h3_redis_region_sgg8"
+        return "h3_jvm_region_sgg8"
     }
 
-    @GetMapping("/h3/redis/region/sd6")
+    @GetMapping("/h3/jvm/region/sd6")
     fun h3RedisRegionSd6(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        return "h3_redis_region_sd6"
+        return "h3_jvm_region_sd6"
     }
 
     // Region Count (고정 카운트)
@@ -122,5 +122,19 @@ class MapController(
     fun h3FixedGrid(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
         return "h3_fixed_grid"
+    }
+
+    // 뷰포트 기반 동적 그리드
+    @GetMapping("/h3/viewport-grid")
+    fun h3ViewportGrid(model: Model): String {
+        model.addAttribute("naverMapClientId", naverMapClientId)
+        return "h3_viewport_grid"
+    }
+
+    // Redis Protobuf - 읍면동 집계
+    @GetMapping("/h3/proto/region/emd10")
+    fun h3ProtoRegionEmd10(model: Model): String {
+        model.addAttribute("naverMapClientId", naverMapClientId)
+        return "h3_proto_emd10_region"
     }
 }

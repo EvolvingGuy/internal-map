@@ -36,7 +36,7 @@
     <script>
         const map = new naver.maps.Map('map', {
             center: new naver.maps.LatLng(37.5665, 126.9780),
-            zoom: 14
+            zoom: 18
         });
 
         let debounceTimer = null;

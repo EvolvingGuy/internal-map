@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>H3 Redis - 읍면동 집계</title>
+    <title>H3 - Viewport Grid</title>
     <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,68 +20,84 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             font-size: 13px;
         }
-        #info h3 { margin-bottom: 8px; color: #059669; }
+        #info h3 { margin-bottom: 8px; color: #7c3aed; }
         #info div { margin: 4px 0; }
+        .grid-info { color: #6b7280; font-size: 11px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="info">
-        <h3>H3 Redis - 읍면동 집계</h3>
-        <div>읍면동: <span id="regionCount">0</span>개</div>
+        <h3>Viewport Grid</h3>
+        <div>그리드: <span id="gridSize">0x0</span></div>
+        <div>클러스터: <span id="cellCount">0</span>개</div>
         <div>총 PNU: <span id="pnuCount">0</span>개</div>
         <div>응답시간: <span id="elapsed">0</span>ms</div>
+        <div class="grid-info">뷰포트: <span id="viewport">0x0</span>px</div>
+        <div class="grid-info">셀 크기: <span id="targetCell">450</span>px</div>
     </div>
 
     <script>
         const map = new naver.maps.Map('map', {
             center: new naver.maps.LatLng(37.5665, 126.9780),
-            zoom: 14
+            zoom: 18
         });
 
         let debounceTimer = null;
         let overlayMap = new Map();
         let pendingDraw = null;
+        const TARGET_CELL_SIZE = 450;
 
         function fetchData() {
             const bounds = map.getBounds();
             const sw = bounds.getSW();
             const ne = bounds.getNE();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            document.getElementById('viewport').textContent = viewportWidth + 'x' + viewportHeight;
+            document.getElementById('targetCell').textContent = TARGET_CELL_SIZE;
 
             const params = new URLSearchParams({
                 swLng: sw.lng(),
                 swLat: sw.lat(),
                 neLng: ne.lng(),
-                neLat: ne.lat()
+                neLat: ne.lat(),
+                viewportWidth: viewportWidth,
+                viewportHeight: viewportHeight,
+                targetCellSize: TARGET_CELL_SIZE
             });
-            fetch(`/api/h3/redis/region/emd?${r"${params}"}`)
+
+            fetch(`/api/h3/jvm/viewport-grid?${r"${params}"}`)
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('regionCount').textContent = data.regions.length.toLocaleString();
+                    document.getElementById('gridSize').textContent = data.cols + 'x' + data.rows;
+                    document.getElementById('cellCount').textContent = data.cells.length.toLocaleString();
                     document.getElementById('pnuCount').textContent = data.totalCount.toLocaleString();
                     document.getElementById('elapsed').textContent = data.elapsedMs;
-                    drawRegions(data.regions);
+                    drawCells(data.cells);
                 })
                 .catch(err => console.error('fetch error:', err));
         }
 
-        function drawRegions(regions) {
+        function drawCells(cells) {
             if (pendingDraw) cancelAnimationFrame(pendingDraw);
 
             pendingDraw = requestAnimationFrame(() => {
                 const activeKeys = new Set();
 
-                for (const region of regions) {
-                    if (region.cnt === 0) continue;
-                    activeKeys.add(region.bjdongCd);
+                for (const cell of cells) {
+                    if (cell.cnt === 0) continue;
+                    const key = cell.row + '_' + cell.col;
+                    activeKeys.add(key);
 
-                    const center = new naver.maps.LatLng(region.lat, region.lng);
-                    const existing = overlayMap.get(region.bjdongCd);
+                    const center = new naver.maps.LatLng(cell.lat, cell.lng);
+                    const existing = overlayMap.get(key);
 
                     if (existing) {
                         existing.marker.setPosition(center);
                         existing.marker.setIcon({
-                            content: buildLabelHtml(region.cnt, region.regionName || region.bjdongCd),
+                            content: buildLabelHtml(cell.cnt),
                             anchor: new naver.maps.Point(0, 0)
                         });
                     } else {
@@ -89,11 +105,11 @@
                             map: map,
                             position: center,
                             icon: {
-                                content: buildLabelHtml(region.cnt, region.regionName || region.bjdongCd),
+                                content: buildLabelHtml(cell.cnt),
                                 anchor: new naver.maps.Point(0, 0)
                             }
                         });
-                        overlayMap.set(region.bjdongCd, { marker });
+                        overlayMap.set(key, { marker });
                     }
                 }
 
@@ -108,9 +124,9 @@
             });
         }
 
-        function buildLabelHtml(count, regionName) {
-            return '<div style="position:relative;"><div style="background:#059669;color:#fff;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);text-align:center;">' +
-                regionName + '<br>' + count.toLocaleString() + '</div></div>';
+        function buildLabelHtml(count) {
+            return '<div style="position:relative;"><div style="background:#7c3aed;color:#fff;padding:6px 10px;border-radius:20px;font-size:12px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);text-align:center;min-width:40px;">' +
+                count.toLocaleString() + '</div></div>';
         }
 
         function onMapIdle() {
@@ -119,6 +135,10 @@
         }
 
         naver.maps.Event.addListener(map, 'idle', onMapIdle);
+        window.addEventListener('resize', () => {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(fetchData, 300);
+        });
         fetchData();
     </script>
 </body>

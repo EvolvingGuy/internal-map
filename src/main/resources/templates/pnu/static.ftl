@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>H3 Redis - 읍면동</title>
+    <title>${title}</title>
     <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,15 +20,15 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             font-size: 13px;
         }
-        #info h3 { margin-bottom: 8px; color: #ea580c; }
+        #info h3 { margin-bottom: 8px; color: #dc2626; }
         #info div { margin: 4px 0; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="info">
-        <h3>H3 Redis - 읍면동</h3>
-        <div>H3 셀: <span id="cellCount">0</span>개</div>
+        <h3>${title}</h3>
+        <div>행정구역: <span id="regionCount">0</span>개</div>
         <div>총 PNU: <span id="pnuCount">0</span>개</div>
         <div>응답시간: <span id="elapsed">0</span>ms</div>
     </div>
@@ -36,11 +36,11 @@
     <script>
         const map = new naver.maps.Map('map', {
             center: new naver.maps.LatLng(37.5665, 126.9780),
-            zoom: 14
+            zoom: 18
         });
 
         let debounceTimer = null;
-        let overlayMap = new Map();
+        let markerMap = new Map();
         let pendingDraw = null;
 
         function fetchData() {
@@ -54,64 +54,55 @@
                 neLng: ne.lng(),
                 neLat: ne.lat()
             });
-            fetch(`/api/h3/redis/emd?${r"${params}"}`)
+
+            fetch(`${apiPath}?${'$'}{params}`)
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('cellCount').textContent = data.cells.length.toLocaleString();
+                    document.getElementById('regionCount').textContent = data.regions.length.toLocaleString();
                     document.getElementById('pnuCount').textContent = data.totalCount.toLocaleString();
                     document.getElementById('elapsed').textContent = data.elapsedMs;
-                    drawCells(data.cells);
+                    drawRegions(data.regions);
                 })
                 .catch(err => console.error('fetch error:', err));
         }
 
-        function drawCells(cells) {
+        function drawRegions(regions) {
             if (pendingDraw) cancelAnimationFrame(pendingDraw);
 
             pendingDraw = requestAnimationFrame(() => {
                 const activeKeys = new Set();
 
-                for (const cell of cells) {
-                    if (cell.cnt === 0) continue;
-                    activeKeys.add(cell.h3Index);
+                for (const region of regions) {
+                    if (region.cnt === 0) continue;
+                    const key = String(region.code);
+                    activeKeys.add(key);
 
-                    const center = new naver.maps.LatLng(cell.lat, cell.lng);
-                    const existing = overlayMap.get(cell.h3Index);
+                    const center = new naver.maps.LatLng(region.centerLat, region.centerLng);
+                    const existing = markerMap.get(key);
 
                     if (existing) {
-                        existing.circle.setCenter(center);
-                        existing.marker.setPosition(center);
-                        existing.marker.setIcon({
-                            content: buildLabelHtml(cell.cnt),
+                        existing.setPosition(center);
+                        existing.setIcon({
+                            content: buildLabelHtml(region.cnt, region.name),
                             anchor: new naver.maps.Point(0, 0)
                         });
                     } else {
-                        const circle = new naver.maps.Circle({
-                            map: map,
-                            center: center,
-                            radius: 66,
-                            fillColor: '#f97316',
-                            fillOpacity: 0.4,
-                            strokeColor: '#ea580c',
-                            strokeWeight: 1
-                        });
                         const marker = new naver.maps.Marker({
                             map: map,
                             position: center,
                             icon: {
-                                content: buildLabelHtml(cell.cnt),
+                                content: buildLabelHtml(region.cnt, region.name),
                                 anchor: new naver.maps.Point(0, 0)
                             }
                         });
-                        overlayMap.set(cell.h3Index, { circle, marker });
+                        markerMap.set(key, marker);
                     }
                 }
 
-                for (const [key, { circle, marker }] of overlayMap) {
+                for (const [key, marker] of markerMap) {
                     if (!activeKeys.has(key)) {
-                        circle.setMap(null);
                         marker.setMap(null);
-                        overlayMap.delete(key);
+                        markerMap.delete(key);
                     }
                 }
 
@@ -119,9 +110,9 @@
             });
         }
 
-        function buildLabelHtml(count) {
-            return '<div style="position:relative;"><div style="background:#ea580c;color:#fff;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);">' +
-                count.toLocaleString() + '</div></div>';
+        function buildLabelHtml(count, name) {
+            return '<div style="position:relative;"><div style="background:#dc2626;color:#fff;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);text-align:center;">' +
+                name + '<br>' + count.toLocaleString() + '</div></div>';
         }
 
         function onMapIdle() {

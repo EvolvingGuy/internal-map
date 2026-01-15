@@ -24,7 +24,7 @@ class H3Sgg8Cache(
         )
     }
 
-    @PostConstruct
+    // @PostConstruct  // 임시 비활성화 - res 10 테스트
     fun init() {
         Thread {
             log.info("H3Sgg8Cache 프리로드 시작 (시도 {}개)", ALL_SIDO_CODES.size)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>H3 Redis - 시도 집계 (res 6)</title>
+    <title>H3 Redis - 시군구 집계 (res 8)</title>
     <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -20,23 +20,23 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             font-size: 13px;
         }
-        #info h3 { margin-bottom: 8px; color: #059669; }
+        #info h3 { margin-bottom: 8px; color: #ea580c; }
         #info div { margin: 4px 0; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="info">
-        <h3>H3 Redis - 시도 집계 (res 6)</h3>
-        <div>시도: <span id="regionCount">0</span>개</div>
+        <h3>H3 Redis - 시군구 집계 (res 8)</h3>
+        <div>시군구: <span id="regionCount">0</span>개</div>
         <div>총 PNU: <span id="pnuCount">0</span>개</div>
         <div>응답시간: <span id="elapsed">0</span>ms</div>
     </div>
 
     <script>
         const map = new naver.maps.Map('map', {
-            center: new naver.maps.LatLng(36.5, 127.5),
-            zoom: 7
+            center: new naver.maps.LatLng(37.5665, 126.9780),
+            zoom: 18
         });
 
         let debounceTimer = null;
@@ -54,7 +54,7 @@
                 neLng: ne.lng(),
                 neLat: ne.lat()
             });
-            fetch(`/api/h3/redis/region/sd6?${r"${params}"}`)
+            fetch(`/api/h3/jvm/region/sgg8?${r"${params}"}`)
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('regionCount').textContent = data.regions.length.toLocaleString();
@@ -109,7 +109,7 @@
         }
 
         function buildLabelHtml(count, regionName) {
-            return '<div style="position:relative;"><div style="background:#059669;color:#fff;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);text-align:center;">' +
+            return '<div style="position:relative;"><div style="background:#ea580c;color:#fff;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);text-align:center;">' +
                 regionName + '<br>' + count.toLocaleString() + '</div></div>';
         }
 

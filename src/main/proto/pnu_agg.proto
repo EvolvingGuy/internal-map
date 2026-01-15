@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package com.sanghoon.jvm_jst.pnu.proto;
+
+option java_multiple_files = true;
+option java_outer_classname = "PnuAggProto";
+
+// H3 인덱스별 Agg 데이터 (테이블 그대로 / 가변형용)
+message AggCacheDataProto {
+  int64 code = 1;
+  int32 cnt = 2;
+  double sum_lat = 3;
+  double sum_lng = 4;
+}
+
+// H3 인덱스별 Agg 데이터 리스트
+message AggCacheListProto {
+  repeated AggCacheDataProto items = 1;
+}
+
+// 고정형 리전 데이터
+message StaticRegionCacheDataProto {
+  int64 code = 1;
+  string name = 2;
+  int32 cnt = 3;
+  double center_lat = 4;
+  double center_lng = 5;
+}
+
+// 고정형 리전 데이터 리스트
+message StaticRegionCacheListProto {
+  repeated StaticRegionCacheDataProto items = 1;
+}

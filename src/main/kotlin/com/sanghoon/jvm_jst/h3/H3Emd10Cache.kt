@@ -6,8 +6,9 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 
 @Component
-class H3Emd9Cache(
-    private val repository: H3AggEmd9Repository
+class H3Emd10Cache(
+    private val repository: H3AggEmdRepository,
+    private val regionCountCache: RegionCountCache
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -18,8 +19,8 @@ class H3Emd9Cache(
     private val loadedKeys = ConcurrentHashMap.newKeySet<String>()
 
     companion object {
-        // BjdongCellData 추정 크기: bjdongCd(~40B) + cnt(4B) + sumLat(8B) + sumLng(8B) + 객체헤더(~16B) ≈ 80B
-        private const val BYTES_PER_RECORD = 80L
+        // BjdongCellData 추정 크기: bjdongCd(Int 4B) + cnt(Short 2B) + sumLat(8B) + sumLng(8B) + 객체헤더(~16B) ≈ 38B
+        private const val BYTES_PER_RECORD = 38L
 
         // 전체 시도 코드
         private val ALL_SIDO_CODES = listOf(
@@ -43,10 +44,10 @@ class H3Emd9Cache(
         )
     }
 
-    @PostConstruct
+    // @PostConstruct  // 비활성화 - Redis 캐시 사용
     fun init() {
         Thread {
-            log.info("H3Emd9Cache 프리로드 시작 (시도 {}개)", ALL_SIDO_CODES.size)
+            log.info("H3Emd10Cache 프리로드 시작 - res 10 (시도 {}개)", ALL_SIDO_CODES.size)
             val totalStart = System.currentTimeMillis()
             var totalH3Cells = 0
             var totalRecords = 0L
@@ -54,7 +55,9 @@ class H3Emd9Cache(
             for (sidoCode in ALL_SIDO_CODES) {
                 try {
                     val stepStart = System.currentTimeMillis()
-                    val rows = repository.findBySidoCode(sidoCode)
+                    val minCode = sidoCode.toInt() * 1000000
+                    val maxCode = (sidoCode.toInt() + 1) * 1000000
+                    val rows = repository.findBySidoCodeRange(minCode, maxCode)
 
                     var h3CellCount = 0
                     var recordCount = 0
@@ -63,8 +66,8 @@ class H3Emd9Cache(
                         .forEach { (h3Index, group) ->
                             val list = group.map { row ->
                                 BjdongCellData(
-                                    bjdongCd = row[0] as String,
-                                    cnt = (row[2] as Number).toInt(),
+                                    bjdongCd = (row[0] as Number).toInt(),
+                                    cnt = (row[2] as Number).toShort(),
                                     sumLat = (row[3] as Number).toDouble(),
                                     sumLng = (row[4] as Number).toDouble()
                                 )
@@ -92,8 +95,10 @@ class H3Emd9Cache(
             totalRecordCount = totalRecords
             val totalElapsed = System.currentTimeMillis() - totalStart
             val finalMB = (totalRecords * BYTES_PER_RECORD) / 1024.0 / 1024.0
-            log.info("H3Emd9Cache 프리로드 완료: H3셀={}개, 레코드={}개, {}MB, 총 {}ms",
+            log.info("H3Emd10Cache 프리로드 완료 - res 10: H3셀={}개, 레코드={}개, {}MB, 총 {}ms",
                 totalH3Cells, totalRecords, String.format("%.2f", finalMB), totalElapsed)
+
+            regionCountCache.init()
         }.start()
     }
 
@@ -129,8 +134,8 @@ class H3Emd9Cache(
             if (group != null) {
                 val list = group.map { row ->
                     BjdongCellData(
-                        bjdongCd = row[0] as String,
-                        cnt = (row[2] as Number).toInt(),
+                        bjdongCd = (row[0] as Number).toInt(),
+                        cnt = (row[2] as Number).toShort(),
                         sumLat = (row[3] as Number).toDouble(),
                         sumLng = (row[4] as Number).toDouble()
                     )

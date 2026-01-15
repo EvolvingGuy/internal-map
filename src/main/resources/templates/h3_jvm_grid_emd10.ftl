@@ -36,7 +36,7 @@
     <script>
         const map = new naver.maps.Map('map', {
             center: new naver.maps.LatLng(37.5665, 126.9780),
-            zoom: 17
+            zoom: 18
         });
 
         let debounceTimer = null;
@@ -54,7 +54,7 @@
                 neLng: ne.lng(),
                 neLat: ne.lat()
             });
-            fetch(`/api/h3/redis/grid/emd9?${r"${params}"}`)
+            fetch(`/api/h3/jvm/grid/emd10?${r"${params}"}`)
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('cellCount').textContent = data.cells.filter(c => c.cnt > 0).length;

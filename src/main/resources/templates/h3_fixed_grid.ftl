@@ -51,7 +51,7 @@
     <script>
         const map = new naver.maps.Map('map', {
             center: new naver.maps.LatLng(37.5665, 126.9780),
-            zoom: 16
+            zoom: 18
         });
 
         let debounceTimer = null;
@@ -71,7 +71,7 @@
                 gridSize: 300
             });
 
-            fetch(`/api/h3/redis/fixed-grid?${r"${params}"}`)
+            fetch(`/api/h3/jvm/fixed-grid?${r"${params}"}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) {

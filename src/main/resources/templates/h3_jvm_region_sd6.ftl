@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Region Count - 시도</title>
+    <title>H3 Redis - 시도 집계 (res 6)</title>
     <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -27,7 +27,7 @@
 <body>
     <div id="map"></div>
     <div id="info">
-        <h3>Region Count - 시도</h3>
+        <h3>H3 Redis - 시도 집계 (res 6)</h3>
         <div>시도: <span id="regionCount">0</span>개</div>
         <div>총 PNU: <span id="pnuCount">0</span>개</div>
         <div>응답시간: <span id="elapsed">0</span>ms</div>
@@ -54,7 +54,7 @@
                 neLng: ne.lng(),
                 neLat: ne.lat()
             });
-            fetch(`/api/region-count/sd?${r"${params}"}`)
+            fetch(`/api/h3/jvm/region/sd6?${r"${params}"}`)
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('regionCount').textContent = data.regions.length.toLocaleString();
@@ -73,15 +73,15 @@
 
                 for (const region of regions) {
                     if (region.cnt === 0) continue;
-                    activeKeys.add(region.regionCode);
+                    activeKeys.add(region.bjdongCd);
 
-                    const center = new naver.maps.LatLng(region.centerLat, region.centerLng);
-                    const existing = overlayMap.get(region.regionCode);
+                    const center = new naver.maps.LatLng(region.lat, region.lng);
+                    const existing = overlayMap.get(region.bjdongCd);
 
                     if (existing) {
                         existing.marker.setPosition(center);
                         existing.marker.setIcon({
-                            content: buildLabelHtml(region.cnt, region.regionName),
+                            content: buildLabelHtml(region.cnt, region.regionName || region.bjdongCd),
                             anchor: new naver.maps.Point(0, 0)
                         });
                     } else {
@@ -89,11 +89,11 @@
                             map: map,
                             position: center,
                             icon: {
-                                content: buildLabelHtml(region.cnt, region.regionName),
+                                content: buildLabelHtml(region.cnt, region.regionName || region.bjdongCd),
                                 anchor: new naver.maps.Point(0, 0)
                             }
                         });
-                        overlayMap.set(region.regionCode, { marker });
+                        overlayMap.set(region.bjdongCd, { marker });
                     }
                 }
 

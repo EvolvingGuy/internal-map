@@ -30,17 +30,6 @@ class RegionNameCache(
             }
         }
 
-        // 2. 캐시 미스 → DB 조회 후 캐시 저장
-        if (missingCodes.isNotEmpty()) {
-            val fromDb = repository.findByRegionCodeIn(missingCodes)
-            for (entity in fromDb) {
-                val name = entity.regionKoreanName ?: ""
-                cache[entity.regionCode] = name
-                result[entity.regionCode] = name
-            }
-            log.debug("[RegionNameCache] hit=${regionCodes.size - missingCodes.size}, miss=${missingCodes.size}, dbFetched=${fromDb.size}")
-        }
-
         return result
     }
 
