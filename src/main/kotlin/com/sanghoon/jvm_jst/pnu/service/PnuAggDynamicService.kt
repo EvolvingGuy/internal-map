@@ -83,26 +83,35 @@ class PnuAggDynamicService(
 
         // 1. bbox → H3 인덱스
         val h3Indexes = H3Util.bboxToH3Indexes(bbox, resolution)
+        val h3Time = System.currentTimeMillis() - startTime
         if (h3Indexes.isEmpty()) {
             return DynamicResponse(emptyList(), 0, 0)
         }
 
         // 2. 캐시 조회
+        val cacheStart = System.currentTimeMillis()
         val cached = cacheService.multiGet(cachePrefix, h3Indexes)
+        val cacheGetTime = System.currentTimeMillis() - cacheStart
         val cachedH3s = cached.keys
         val missingH3s = h3Indexes.filter { it !in cachedH3s }
 
         // 3. 캐시 미스 → DB 조회
+        var dbTime = 0L
+        var cacheSetTime = 0L
         val fromDb = if (missingH3s.isNotEmpty()) {
+            val dbStart = System.currentTimeMillis()
             val dbResult = dbFetcher(missingH3s)
+            dbTime = System.currentTimeMillis() - dbStart
             val grouped = dbResult.groupBy({ it.second }, { it.first })
 
             // 캐시 저장 (빈 결과도 저장)
+            val cacheSetStart = System.currentTimeMillis()
             val toCache = mutableMapOf<Long, List<AggCacheData>>()
             for (h3Index in missingH3s) {
                 toCache[h3Index] = grouped[h3Index] ?: emptyList()
             }
             cacheService.multiSet(cachePrefix, toCache)
+            cacheSetTime = System.currentTimeMillis() - cacheSetStart
 
             grouped
         } else {
@@ -139,11 +148,12 @@ class PnuAggDynamicService(
             )
         }
 
-        val elapsed = System.currentTimeMillis() - startTime
-        log.info("[PnuAggDynamic] res={}, h3={}, hit={}, miss={}, regions={}, time={}ms",
-            resolution, h3Indexes.size, cachedH3s.size, missingH3s.size, result.size, elapsed)
+        val totalTime = System.currentTimeMillis() - startTime
+        log.info("[PnuAggDynamic] res={}, h3={}, hit={}, miss={}, regions={} | h3={}ms, cacheGet={}ms, db={}ms, cacheSet={}ms, total={}ms",
+            resolution, h3Indexes.size, cachedH3s.size, missingH3s.size, result.size,
+            h3Time, cacheGetTime, dbTime, cacheSetTime, totalTime)
 
-        return DynamicResponse(result, result.sumOf { it.cnt }, elapsed)
+        return DynamicResponse(result, result.sumOf { it.cnt }, totalTime)
     }
 
     private class GroupedData(var cnt: Int, var sumLat: Double, var sumLng: Double)

@@ -6,10 +6,20 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.redis.connection.RedisConnectionFactory
 import org.springframework.data.redis.core.RedisTemplate
+import org.springframework.data.redis.serializer.RedisSerializer
 import org.springframework.data.redis.serializer.StringRedisSerializer
 
 @Configuration
 class PnuRedisConfig {
+
+    @Bean
+    fun byteArrayRedisTemplate(factory: RedisConnectionFactory): RedisTemplate<String, ByteArray> {
+        return RedisTemplate<String, ByteArray>().apply {
+            connectionFactory = factory
+            keySerializer = RedisSerializer.string()
+            valueSerializer = RedisSerializer.byteArray()
+        }
+    }
 
     @Bean
     fun aggCacheRedisTemplate(factory: RedisConnectionFactory): RedisTemplate<String, AggCacheListProto> {

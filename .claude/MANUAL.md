@@ -15,19 +15,19 @@
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
 │               │ /page/pnu/agg/sd_05         │ /api/pnu/agg/sd_05         │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
-│ 가변형        │ /page/pnu/agg/dynamic/emd11 │ /api/pnu/agg/dynamic/emd11 │
+│ 가변형        │ /page/pnu/agg/dynamic/emd_11 │ /api/pnu/agg/dynamic/emd_11 │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
-│               │ /page/pnu/agg/dynamic/emd10 │ /api/pnu/agg/dynamic/emd10 │
+│               │ /page/pnu/agg/dynamic/emd_10 │ /api/pnu/agg/dynamic/emd_10 │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
-│               │ /page/pnu/agg/dynamic/emd09 │ /api/pnu/agg/dynamic/emd09 │
+│               │ /page/pnu/agg/dynamic/emd_09 │ /api/pnu/agg/dynamic/emd_09 │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
-│               │ /page/pnu/agg/dynamic/sgg08 │ /api/pnu/agg/dynamic/sgg08 │
+│               │ /page/pnu/agg/dynamic/sgg_08 │ /api/pnu/agg/dynamic/sgg_08 │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
-│               │ /page/pnu/agg/dynamic/sgg07 │ /api/pnu/agg/dynamic/sgg07 │
+│               │ /page/pnu/agg/dynamic/sgg_07 │ /api/pnu/agg/dynamic/sgg_07 │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
-│               │ /page/pnu/agg/dynamic/sd06  │ /api/pnu/agg/dynamic/sd06  │
+│               │ /page/pnu/agg/dynamic/sd_06  │ /api/pnu/agg/dynamic/sd_06  │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
-│               │ /page/pnu/agg/dynamic/sd05  │ /api/pnu/agg/dynamic/sd05  │
+│               │ /page/pnu/agg/dynamic/sd_05  │ /api/pnu/agg/dynamic/sd_05  │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤
 │ 고정형        │ /page/pnu/agg/static/emd    │ /api/pnu/agg/static/emd    │
 ├───────────────┼─────────────────────────────┼────────────────────────────┤

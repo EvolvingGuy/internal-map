@@ -1,7 +1,7 @@
 package com.sanghoon.jvm_jst.pnu
 
-import com.sanghoon.jvm_jst.BoundaryRegionCache
-import com.sanghoon.jvm_jst.RegionLevel
+import com.sanghoon.jvm_jst.legacy.BoundaryRegionCache
+import com.sanghoon.jvm_jst.legacy.RegionLevel
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.*
 

@@ -46,25 +46,25 @@ class PnuAggApiController(
 class PnuAggDynamicApiController(
     private val dynamicService: PnuAggDynamicService
 ) {
-    @GetMapping("/emd11")
+    @GetMapping("/emd_11")
     fun getEmd11(request: AggRequest): DynamicResponse = dynamicService.getEmd11(request.toBBox())
 
-    @GetMapping("/emd10")
+    @GetMapping("/emd_10")
     fun getEmd10(request: AggRequest): DynamicResponse = dynamicService.getEmd10(request.toBBox())
 
-    @GetMapping("/emd09")
+    @GetMapping("/emd_09")
     fun getEmd09(request: AggRequest): DynamicResponse = dynamicService.getEmd09(request.toBBox())
 
-    @GetMapping("/sgg08")
+    @GetMapping("/sgg_08")
     fun getSgg08(request: AggRequest): DynamicResponse = dynamicService.getSgg08(request.toBBox())
 
-    @GetMapping("/sgg07")
+    @GetMapping("/sgg_07")
     fun getSgg07(request: AggRequest): DynamicResponse = dynamicService.getSgg07(request.toBBox())
 
-    @GetMapping("/sd06")
+    @GetMapping("/sd_06")
     fun getSd06(request: AggRequest): DynamicResponse = dynamicService.getSd06(request.toBBox())
 
-    @GetMapping("/sd05")
+    @GetMapping("/sd_05")
     fun getSd05(request: AggRequest): DynamicResponse = dynamicService.getSd05(request.toBBox())
 }
 
@@ -159,59 +159,73 @@ class PnuAggPageController(
 class PnuAggDynamicPageController(
     @Value("\${naver.map.client-id}") private val naverMapClientId: String
 ) {
-    @GetMapping("/emd11")
+    @GetMapping("/emd_11")
     fun emd11(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/emd11")
+        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/emd_11")
         model.addAttribute("title", "PNU Dynamic - EMD 11")
+        model.addAttribute("circleSize", 60)
+        model.addAttribute("fontSize", 10)
         return "pnu/dynamic"
     }
 
-    @GetMapping("/emd10")
+    @GetMapping("/emd_10")
     fun emd10(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/emd10")
+        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/emd_10")
         model.addAttribute("title", "PNU Dynamic - EMD 10")
+        model.addAttribute("circleSize", 60)
+        model.addAttribute("fontSize", 10)
         return "pnu/dynamic"
     }
 
-    @GetMapping("/emd09")
+    @GetMapping("/emd_09")
     fun emd09(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/emd09")
+        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/emd_09")
         model.addAttribute("title", "PNU Dynamic - EMD 09")
+        model.addAttribute("circleSize", 60)
+        model.addAttribute("fontSize", 10)
         return "pnu/dynamic"
     }
 
-    @GetMapping("/sgg08")
+    @GetMapping("/sgg_08")
     fun sgg08(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/sgg08")
+        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/sgg_08")
         model.addAttribute("title", "PNU Dynamic - SGG 08")
+        model.addAttribute("circleSize", 80)
+        model.addAttribute("fontSize", 13)
         return "pnu/dynamic"
     }
 
-    @GetMapping("/sgg07")
+    @GetMapping("/sgg_07")
     fun sgg07(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/sgg07")
+        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/sgg_07")
         model.addAttribute("title", "PNU Dynamic - SGG 07")
+        model.addAttribute("circleSize", 80)
+        model.addAttribute("fontSize", 13)
         return "pnu/dynamic"
     }
 
-    @GetMapping("/sd06")
+    @GetMapping("/sd_06")
     fun sd06(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/sd06")
+        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/sd_06")
         model.addAttribute("title", "PNU Dynamic - SD 06")
+        model.addAttribute("circleSize", 100)
+        model.addAttribute("fontSize", 16)
         return "pnu/dynamic"
     }
 
-    @GetMapping("/sd05")
+    @GetMapping("/sd_05")
     fun sd05(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/sd05")
+        model.addAttribute("apiPath", "/api/pnu/agg/dynamic/sd_05")
         model.addAttribute("title", "PNU Dynamic - SD 05")
+        model.addAttribute("circleSize", 100)
+        model.addAttribute("fontSize", 16)
         return "pnu/dynamic"
     }
 }
@@ -229,6 +243,8 @@ class PnuAggStaticPageController(
         model.addAttribute("naverMapClientId", naverMapClientId)
         model.addAttribute("apiPath", "/api/pnu/agg/static/emd")
         model.addAttribute("title", "PNU Static - EMD")
+        model.addAttribute("circleSize", 60)
+        model.addAttribute("fontSize", 10)
         return "pnu/static"
     }
 
@@ -237,6 +253,8 @@ class PnuAggStaticPageController(
         model.addAttribute("naverMapClientId", naverMapClientId)
         model.addAttribute("apiPath", "/api/pnu/agg/static/sgg")
         model.addAttribute("title", "PNU Static - SGG")
+        model.addAttribute("circleSize", 80)
+        model.addAttribute("fontSize", 13)
         return "pnu/static"
     }
 
@@ -245,6 +263,8 @@ class PnuAggStaticPageController(
         model.addAttribute("naverMapClientId", naverMapClientId)
         model.addAttribute("apiPath", "/api/pnu/agg/static/sd")
         model.addAttribute("title", "PNU Static - SD")
+        model.addAttribute("circleSize", 100)
+        model.addAttribute("fontSize", 16)
         return "pnu/static"
     }
 }

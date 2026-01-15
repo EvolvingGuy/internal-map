@@ -18,13 +18,13 @@ enum class RegionLevel(
     val h3Resolution: Int,
     val staticResolution: Int
 ) {
-    EMD("emd", 9, 9),
-    SGG("sgg", 7, 7),
-    SD("sd", 5, 5);
+    EMD("EMD", 9, 9),
+    SGG("SGG", 7, 7),
+    SD("SD", 5, 5);
 
     companion object {
         fun fromCode(code: String): RegionLevel =
-            entries.find { it.code == code.lowercase() }
+            entries.find { it.code == code.uppercase() }
                 ?: throw IllegalArgumentException("Unknown region level: $code")
     }
 }

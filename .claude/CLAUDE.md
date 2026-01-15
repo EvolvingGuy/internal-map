@@ -23,9 +23,14 @@
   - SD, SGG, EMD
 
 ## 데이터 처리 방식
+- 범위 조회는 한국으로 한정 
 - Spring Data JPARepository 형식으로 멀티 IN 방식 조회
 - Redis Template을 통한 멀티 GET, SET 캐시
 - Redis TTL은 컨텐츠 별로 상이할 것임
+- 캐시 규칙
+  - 결과가 없는 경우에도 없는 걸로 캐시
+  - 예를들어 특정 h3 index에 카운트가 0 이면 0도 캐시
+  - 리스트나 셋이 빈 경우 빈 것을 캐시
 - 주요 절차 원칙
   - Redis Cache 조회
     - 있으면 즉시 응답
@@ -40,6 +45,9 @@
     - val swLat: Double,
     - val neLng: Double,
     - val neLat: Double
+  - FE 요청 제한
+    - 불필요 격자가 조회되는 것 방지
+      - 대한민국 영토, 영해로 범위 제한. 잘리지 않게 조금은 넉넉히
 - 필요한 페이지와 호출할 API
   - 테이블 그대로 조회 페이지
     - 경로 및 API 규칙

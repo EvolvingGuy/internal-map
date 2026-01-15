@@ -1,7 +1,7 @@
 package com.sanghoon.jvm_jst.pnu
 
-import com.sanghoon.jvm_jst.BoundaryRegionCache
-import com.sanghoon.jvm_jst.BoundaryRegionCacheReadyEvent
+import com.sanghoon.jvm_jst.legacy.BoundaryRegionCache
+import com.sanghoon.jvm_jst.legacy.BoundaryRegionCacheReadyEvent
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.context.event.EventListener

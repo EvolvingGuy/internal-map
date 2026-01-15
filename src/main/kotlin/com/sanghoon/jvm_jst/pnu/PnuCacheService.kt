@@ -29,9 +29,8 @@ class PnuCacheService(
 
         // 2. DB 조회 (native query)
         val rows = pnuRepository.findByRegionCodeNative(regionCode)
-        if (rows.isEmpty()) return emptyList()
 
-        // 3. 변환 및 캐시
+        // 3. 변환 및 캐시 (빈 결과도 캐시)
         val dtos = rows.map { row -> rowToDto(row) }
         val bytes = serialize(dtos)
         if (regionCode.take(2) in majorCityCodes) {

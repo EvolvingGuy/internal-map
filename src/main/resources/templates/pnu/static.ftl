@@ -110,9 +110,13 @@
             });
         }
 
+        const circleSize = ${circleSize};
+        const fontSize = ${fontSize};
+        const labelFontSize = Math.max(8, fontSize - 2);
+
         function buildLabelHtml(count, name) {
-            return '<div style="position:relative;"><div style="background:#dc2626;color:#fff;padding:4px 8px;border-radius:8px;font-size:11px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);text-align:center;">' +
-                name + '<br>' + count.toLocaleString() + '</div></div>';
+            return '<div style="position:relative;"><div style="background:#dc2626;color:#fff;width:' + circleSize + 'px;height:' + circleSize + 'px;border-radius:50%;font-size:' + fontSize + 'px;font-weight:bold;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,0.3);line-height:1.2;">' +
+                '<span style="font-size:' + labelFontSize + 'px;">' + name + '</span><span>' + count.toLocaleString() + '</span></div></div>';
         }
 
         function onMapIdle() {

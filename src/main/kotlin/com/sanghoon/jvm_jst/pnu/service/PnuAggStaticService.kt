@@ -79,17 +79,24 @@ class PnuAggStaticService(
 
         // 1. bbox → H3 인덱스
         val h3Indexes = H3Util.bboxToH3Indexes(bbox, level.staticResolution)
+        val h3Time = System.currentTimeMillis() - startTime
         if (h3Indexes.isEmpty()) {
             return StaticResponse(emptyList(), 0, 0)
         }
 
         // 2. 캐시 조회
+        val cacheStart = System.currentTimeMillis()
         val cached = cacheService.multiGetStatic(level.code, h3Indexes)
+        val cacheGetTime = System.currentTimeMillis() - cacheStart
         val cachedH3s = cached.keys
         val missingH3s = h3Indexes.filter { it !in cachedH3s }
 
         // 3. 캐시 미스 → DB 2단계 조회
+        var dbTime = 0L
+        var cacheSetTime = 0L
         val fromDb = if (missingH3s.isNotEmpty()) {
+            val dbStart = System.currentTimeMillis()
+
             // 3-1. H3 → region_code 매핑
             val codeH3Pairs = dbFetcher(missingH3s)
             val h3ToCodesMap = codeH3Pairs.groupBy({ it.second }, { it.first })
@@ -102,8 +109,10 @@ class PnuAggStaticService(
             } else {
                 emptyMap()
             }
+            dbTime = System.currentTimeMillis() - dbStart
 
             // 3-3. H3별로 그룹핑하여 캐시 저장
+            val cacheSetStart = System.currentTimeMillis()
             val toCache = mutableMapOf<Long, List<StaticRegionCacheData>>()
             for (h3Index in missingH3s) {
                 val codes = h3ToCodesMap[h3Index] ?: emptyList()
@@ -121,6 +130,7 @@ class PnuAggStaticService(
                 toCache[h3Index] = regionDataList
             }
             cacheService.multiSetStatic(level.code, toCache)
+            cacheSetTime = System.currentTimeMillis() - cacheSetStart
 
             toCache
         } else {
@@ -147,10 +157,11 @@ class PnuAggStaticService(
             )
         }
 
-        val elapsed = System.currentTimeMillis() - startTime
-        log.info("[PnuAggStatic] level={}, res={}, h3={}, hit={}, miss={}, regions={}, time={}ms",
-            level.code, level.staticResolution, h3Indexes.size, cachedH3s.size, missingH3s.size, result.size, elapsed)
+        val totalTime = System.currentTimeMillis() - startTime
+        log.info("[PnuAggStatic] level={}, res={}, h3={}, hit={}, miss={}, regions={} | h3={}ms, cacheGet={}ms, db={}ms, cacheSet={}ms, total={}ms",
+            level.code, level.staticResolution, h3Indexes.size, cachedH3s.size, missingH3s.size, result.size,
+            h3Time, cacheGetTime, dbTime, cacheSetTime, totalTime)
 
-        return StaticResponse(result, result.sumOf { it.cnt }, elapsed)
+        return StaticResponse(result, result.sumOf { it.cnt }, totalTime)
     }
 }

@@ -111,7 +111,7 @@
         }
 
         function buildLabelHtml(count) {
-            return '<div style="position:relative;"><div style="background:#2563eb;color:#fff;padding:3px 6px;border-radius:6px;font-size:10px;font-weight:bold;white-space:nowrap;transform:translate(-50%,-50%);">' +
+            return '<div style="position:relative;"><div style="background:#2563eb;color:#fff;width:50px;height:50px;border-radius:50%;font-size:12px;font-weight:bold;display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,0.3);">' +
                 count.toLocaleString() + '</div></div>';
         }
 

@@ -1,0 +1,142 @@
+package com.sanghoon.jvm_jst.legacy.h3
+
+import jakarta.annotation.PostConstruct
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Component
+import java.util.concurrent.ConcurrentHashMap
+
+// @Component  // legacy - disabled
+class H3Sgg8Cache(
+    private val repository: H3AggSgg8Repository
+) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    // h3Index -> List<SggCellData>
+    private val cache = ConcurrentHashMap<String, List<SggCellData>>()
+    private val loadedKeys = ConcurrentHashMap.newKeySet<String>()
+
+    companion object {
+        private const val BYTES_PER_RECORD = 70L // sggCd(5자리) 포함 추정
+
+        private val ALL_SIDO_CODES = listOf(
+            "11", "26", "27", "28", "29", "30", "31", "36",
+            "41", "43", "44", "46", "47", "48", "50", "51", "52"
+        )
+    }
+
+    // @PostConstruct  // 임시 비활성화 - res 10 테스트
+    fun init() {
+        Thread {
+            log.info("H3Sgg8Cache 프리로드 시작 (시도 {}개)", ALL_SIDO_CODES.size)
+            val totalStart = System.currentTimeMillis()
+            var totalH3Cells = 0
+            var totalRecords = 0L
+
+            for (sidoCode in ALL_SIDO_CODES) {
+                try {
+                    val stepStart = System.currentTimeMillis()
+                    val rows = repository.findBySidoCode(sidoCode)
+
+                    var h3CellCount = 0
+                    var recordCount = 0
+
+                    rows.groupBy { it[1] as String }
+                        .forEach { (h3Index, group) ->
+                            val newList = group.map { row ->
+                                SggCellData(
+                                    sggCd = row[0] as String,
+                                    cnt = (row[2] as Number).toInt(),
+                                    sumLat = (row[3] as Number).toDouble(),
+                                    sumLng = (row[4] as Number).toDouble()
+                                )
+                            }
+                            // 기존 데이터가 있으면 병합
+                            val existing = cache[h3Index]
+                            cache[h3Index] = if (existing != null) existing + newList else newList
+                            loadedKeys.add(h3Index)
+                            h3CellCount++
+                            recordCount += newList.size
+                        }
+
+                    totalH3Cells += h3CellCount
+                    totalRecords += recordCount
+                    val stepElapsed = System.currentTimeMillis() - stepStart
+                    val stepMB = (recordCount * BYTES_PER_RECORD) / 1024.0 / 1024.0
+                    val totalMB = (totalRecords * BYTES_PER_RECORD) / 1024.0 / 1024.0
+
+                    log.info("프리로드 SGG [{}] H3셀={}개, 레코드={}개, +{}MB (누적 {}MB), {}ms",
+                        sidoCode, h3CellCount, recordCount,
+                        String.format("%.2f", stepMB), String.format("%.2f", totalMB), stepElapsed)
+                } catch (e: Exception) {
+                    log.error("프리로드 실패 SGG - 시도: {}", sidoCode, e)
+                }
+            }
+
+            totalRecordCount = totalRecords
+            val totalElapsed = System.currentTimeMillis() - totalStart
+            val finalMB = (totalRecords * BYTES_PER_RECORD) / 1024.0 / 1024.0
+            log.info("H3Sgg8Cache 프리로드 완료: H3셀={}개, 레코드={}개, {}MB, 총 {}ms",
+                totalH3Cells, totalRecords, String.format("%.2f", finalMB), totalElapsed)
+        }.start()
+    }
+
+    @Volatile
+    private var totalRecordCount = 0L
+
+    fun get(h3Indexes: Collection<String>): Map<String, List<SggCellData>> {
+        val result = HashMap<String, List<SggCellData>>(h3Indexes.size)
+        val toLoad = mutableListOf<String>()
+
+        for (h3Index in h3Indexes) {
+            val cached = cache[h3Index]
+            if (cached != null) {
+                result[h3Index] = cached
+            } else if (!loadedKeys.contains(h3Index)) {
+                toLoad.add(h3Index)
+            }
+        }
+
+        if (toLoad.isNotEmpty()) {
+            loadFromDb(toLoad, result)
+        }
+
+        return result
+    }
+
+    private fun loadFromDb(h3Indexes: List<String>, result: MutableMap<String, List<SggCellData>>) {
+        val rows = repository.findByH3IndexesWithSgg(h3Indexes)
+        val grouped = rows.groupBy { it[1] as String }
+
+        for (h3Index in h3Indexes) {
+            val group = grouped[h3Index]
+            if (group != null) {
+                val list = group.map { row ->
+                    SggCellData(
+                        sggCd = row[0] as String,
+                        cnt = (row[2] as Number).toInt(),
+                        sumLat = (row[3] as Number).toDouble(),
+                        sumLng = (row[4] as Number).toDouble()
+                    )
+                }
+                cache[h3Index] = list
+                result[h3Index] = list
+                totalRecordCount += list.size
+            }
+            loadedKeys.add(h3Index)
+        }
+    }
+
+    fun getCacheSize(): Int = cache.size
+
+    fun getCacheSizeMB(): String {
+        val bytes = totalRecordCount * BYTES_PER_RECORD
+        return String.format("%.2f", bytes / 1024.0 / 1024.0)
+    }
+}
+
+data class SggCellData(
+    val sggCd: String,
+    val cnt: Int,
+    val sumLat: Double,
+    val sumLng: Double
+)

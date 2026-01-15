@@ -59,7 +59,8 @@ class PnuAggCacheService(
         val result = mutableMapOf<Long, List<AggCacheData>>()
         h3Indexes.forEachIndexed { idx, h3Index ->
             val proto = values.getOrNull(idx)
-            if (proto != null && proto.itemsCount > 0) {
+            if (proto != null) {
+                // 빈 리스트도 캐시 히트로 처리 (negative caching)
                 result[h3Index] = proto.itemsList.map { it.toDto() }
             }
         }
@@ -86,7 +87,8 @@ class PnuAggCacheService(
         val result = mutableMapOf<Long, List<StaticRegionCacheData>>()
         h3Indexes.forEachIndexed { idx, h3Index ->
             val proto = values.getOrNull(idx)
-            if (proto != null && proto.itemsCount > 0) {
+            if (proto != null) {
+                // 빈 리스트도 캐시 히트로 처리 (negative caching)
                 result[h3Index] = proto.itemsList.map { it.toDto() }
             }
         }

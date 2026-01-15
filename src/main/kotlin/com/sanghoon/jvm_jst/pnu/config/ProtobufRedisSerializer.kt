@@ -5,7 +5,7 @@ import com.google.protobuf.Parser
 import org.springframework.data.redis.serializer.RedisSerializer
 
 class ProtobufRedisSerializer<T : Message>(
-    defaultInstance: T
+    private val defaultInstance: T
 ) : RedisSerializer<T> {
 
     @Suppress("UNCHECKED_CAST")
@@ -15,8 +15,11 @@ class ProtobufRedisSerializer<T : Message>(
         return t?.toByteArray() ?: ByteArray(0)
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun deserialize(bytes: ByteArray?): T? {
-        if (bytes == null || bytes.isEmpty()) return null
+        if (bytes == null) return null
+        // 빈 byte array = 빈 proto (negative caching 지원)
+        if (bytes.isEmpty()) return defaultInstance as T
         return parser.parseFrom(bytes)
     }
 }
