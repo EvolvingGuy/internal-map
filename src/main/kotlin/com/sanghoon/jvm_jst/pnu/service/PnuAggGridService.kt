@@ -32,15 +32,19 @@ data class GridResponse(
  * PNU Agg 그리드 서비스
  *
  * 줌레벨에 따라 사용할 테이블 분기:
- * - zoom 16~22 → emd_10 (H3 res 10)
- * - zoom 12~15 → sgg_07 (H3 res 7)
- * - zoom 0~11  → sd_05 (H3 res 5)
+ * - zoom 18~22 → emd_11 (H3 res 11)
+ * - zoom 16~17 → emd_10 (H3 res 10)
+ * - zoom 13~15 → sgg_08 (H3 res 8)
+ * - zoom 10~12 → sd_06 (H3 res 6)
+ * - zoom 0~9   → sd_05 (H3 res 5)
  */
 @Service
 class PnuAggGridService(
     private val cacheService: PnuAggCacheService,
+    private val emd11Repository: PnuAggEmd11Repository,
     private val emd10Repository: PnuAggEmd10Repository,
-    private val sgg07Repository: PnuAggSgg07Repository,
+    private val sgg08Repository: PnuAggSgg08Repository,
+    private val sd06Repository: PnuAggSd06Repository,
     private val sd05Repository: PnuAggSd05Repository
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -59,11 +63,17 @@ class PnuAggGridService(
 
         // 1. 줌레벨 → 해상도/캐시프리픽스/레포지토리 결정
         val (resolution, cachePrefix, dbFetcher) = when {
+            zoomLevel >= 18 -> Triple(11, PnuAggCacheService.PREFIX_EMD_11) { h3Indexes: Collection<Long> ->
+                emd11Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
+            }
             zoomLevel >= 16 -> Triple(10, PnuAggCacheService.PREFIX_EMD_10) { h3Indexes: Collection<Long> ->
                 emd10Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
             }
-            zoomLevel >= 12 -> Triple(7, PnuAggCacheService.PREFIX_SGG_07) { h3Indexes: Collection<Long> ->
-                sgg07Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
+            zoomLevel >= 13 -> Triple(8, PnuAggCacheService.PREFIX_SGG_08) { h3Indexes: Collection<Long> ->
+                sgg08Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
+            }
+            zoomLevel >= 10 -> Triple(6, PnuAggCacheService.PREFIX_SD_06) { h3Indexes: Collection<Long> ->
+                sd06Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
             }
             else -> Triple(5, PnuAggCacheService.PREFIX_SD_05) { h3Indexes: Collection<Long> ->
                 sd05Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
