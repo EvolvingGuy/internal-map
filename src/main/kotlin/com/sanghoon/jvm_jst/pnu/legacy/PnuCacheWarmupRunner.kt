@@ -1,4 +1,4 @@
-package com.sanghoon.jvm_jst.pnu
+package com.sanghoon.jvm_jst.pnu.legacy
 
 import com.sanghoon.jvm_jst.legacy.BoundaryRegionCache
 import com.sanghoon.jvm_jst.legacy.BoundaryRegionCacheReadyEvent

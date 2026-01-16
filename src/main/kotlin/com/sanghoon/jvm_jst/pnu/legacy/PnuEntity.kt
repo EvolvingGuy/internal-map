@@ -1,4 +1,4 @@
-package com.sanghoon.jvm_jst.pnu
+package com.sanghoon.jvm_jst.pnu.legacy
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity

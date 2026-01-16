@@ -1,4 +1,4 @@
-package com.sanghoon.jvm_jst.pnu
+package com.sanghoon.jvm_jst.pnu.legacy
 
 /**
  * 좌표 압축 유틸

@@ -1,4 +1,4 @@
-package com.sanghoon.jvm_jst.pnu
+package com.sanghoon.jvm_jst.pnu.legacy
 
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
