@@ -332,3 +332,16 @@ class PnuAggCountPageController(
         return "pnu/count"
     }
 }
+
+/**
+ * 중심점 행정구역 인디케이터 API 컨트롤러
+ */
+@RestController
+@RequestMapping("/api/pnu/agg")
+class CenterIndicatorApiController(
+    private val centerIndicatorService: CenterIndicatorService
+) {
+    @GetMapping("/indicator")
+    fun getIndicator(request: AggRequest): CenterIndicatorResponse =
+        centerIndicatorService.getIndicator(request.toBBox())
+}

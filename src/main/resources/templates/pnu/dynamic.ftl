@@ -1,3 +1,4 @@
+<#import "common/indicator.ftl" as ind>
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -22,10 +23,12 @@
         }
         #info h3 { margin-bottom: 8px; color: #059669; }
         #info div { margin: 4px 0; }
+<@ind.indicatorStyle/>
     </style>
 </head>
 <body>
     <div id="map"></div>
+<@ind.indicatorHtml/>
     <div id="info">
         <h3>${title}</h3>
         <div>행정구역: <span id="regionCount">0</span>개</div>
@@ -66,6 +69,8 @@
                 .catch(err => console.error('fetch error:', err));
         }
 
+<@ind.indicatorScript/>
+
         function drawRegions(regions) {
             if (pendingDraw) cancelAnimationFrame(pendingDraw);
 
@@ -83,7 +88,7 @@
                     if (existing) {
                         existing.setPosition(center);
                         existing.setIcon({
-                            content: buildLabelHtml(region.cnt, region.code),
+                            content: buildLabelHtml(region.cnt, region.name || region.code),
                             anchor: new naver.maps.Point(0, 0)
                         });
                     } else {
@@ -91,7 +96,7 @@
                             map: map,
                             position: center,
                             icon: {
-                                content: buildLabelHtml(region.cnt, region.code),
+                                content: buildLabelHtml(region.cnt, region.name || region.code),
                                 anchor: new naver.maps.Point(0, 0)
                             }
                         });
@@ -114,18 +119,22 @@
         const fontSize = ${fontSize};
         const labelFontSize = Math.max(8, fontSize - 2);
 
-        function buildLabelHtml(count, code) {
+        function buildLabelHtml(count, label) {
             return '<div style="position:relative;"><div style="background:#059669;color:#fff;width:' + circleSize + 'px;height:' + circleSize + 'px;border-radius:50%;font-size:' + fontSize + 'px;font-weight:bold;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,0.3);line-height:1.2;">' +
-                '<span style="font-size:' + labelFontSize + 'px;">' + code + '</span><span>' + count.toLocaleString() + '</span></div></div>';
+                '<span style="font-size:' + labelFontSize + 'px;">' + label + '</span><span>' + count.toLocaleString() + '</span></div></div>';
         }
 
         function onMapIdle() {
             if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(fetchData, 300);
+            debounceTimer = setTimeout(() => {
+                fetchData();
+                fetchIndicator();
+            }, 300);
         }
 
         naver.maps.Event.addListener(map, 'idle', onMapIdle);
         fetchData();
+        fetchIndicator();
     </script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 package com.sanghoon.jvm_jst.pnu.service
 
 import com.sanghoon.jvm_jst.pnu.cache.AggCacheData
+import com.sanghoon.jvm_jst.pnu.cache.BoundaryRegionCacheService
 import com.sanghoon.jvm_jst.pnu.cache.PnuAggCacheService
 import com.sanghoon.jvm_jst.pnu.common.BBox
 import com.sanghoon.jvm_jst.pnu.common.H3Util
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service
  */
 data class DynamicRegionResponse(
     val code: Long,
+    val name: String?,
     val cnt: Int,
     val lat: Double,
     val lng: Double
@@ -32,6 +34,7 @@ data class DynamicResponse(
 @Service
 class PnuAggDynamicService(
     private val cacheService: PnuAggCacheService,
+    private val boundaryRegionCacheService: BoundaryRegionCacheService,
     private val emd11Repository: PnuAggEmd11Repository,
     private val emd10Repository: PnuAggEmd10Repository,
     private val emd09Repository: PnuAggEmd09Repository,
@@ -42,41 +45,68 @@ class PnuAggDynamicService(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    // EMD (읍면동)
-    fun getEmd11(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 11, PnuAggCacheService.PREFIX_EMD_11) { h3Indexes ->
+    // EMD (읍면동) - excludeRi=true: 리 제외하고 읍면동 단위로 그루핑
+    fun getEmd11(bbox: BBox): DynamicResponse = fetchDynamicEmd(bbox, 11, PnuAggCacheService.PREFIX_EMD_11, excludeRi = true, codeLength = 8) { h3Indexes ->
         emd11Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
     }
 
-    fun getEmd10(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 10, PnuAggCacheService.PREFIX_EMD_10) { h3Indexes ->
+    fun getEmd10(bbox: BBox): DynamicResponse = fetchDynamicEmd(bbox, 10, PnuAggCacheService.PREFIX_EMD_10, excludeRi = true, codeLength = 8) { h3Indexes ->
         emd10Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
     }
 
-    fun getEmd09(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 9, PnuAggCacheService.PREFIX_EMD_09) { h3Indexes ->
+    fun getEmd09(bbox: BBox): DynamicResponse = fetchDynamicEmd(bbox, 9, PnuAggCacheService.PREFIX_EMD_09, excludeRi = true, codeLength = 8) { h3Indexes ->
         emd09Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
     }
 
     // SGG (시군구)
-    fun getSgg08(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 8, PnuAggCacheService.PREFIX_SGG_08) { h3Indexes ->
+    fun getSgg08(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 8, PnuAggCacheService.PREFIX_SGG_08, codeLength = 5) { h3Indexes ->
         sgg08Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
     }
 
-    fun getSgg07(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 7, PnuAggCacheService.PREFIX_SGG_07) { h3Indexes ->
+    fun getSgg07(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 7, PnuAggCacheService.PREFIX_SGG_07, codeLength = 5) { h3Indexes ->
         sgg07Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
     }
 
     // SD (시도)
-    fun getSd06(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 6, PnuAggCacheService.PREFIX_SD_06) { h3Indexes ->
+    fun getSd06(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 6, PnuAggCacheService.PREFIX_SD_06, codeLength = 2) { h3Indexes ->
         sd06Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
     }
 
-    fun getSd05(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 5, PnuAggCacheService.PREFIX_SD_05) { h3Indexes ->
+    fun getSd05(bbox: BBox): DynamicResponse = fetchDynamic(bbox, 5, PnuAggCacheService.PREFIX_SD_05, codeLength = 2) { h3Indexes ->
         sd05Repository.findByH3Indexes(h3Indexes).map { AggCacheData(it.code, it.cnt, it.sumLat, it.sumLng) to it.h3Index }
     }
 
+    /**
+     * SGG/SD용 - 코드 변환 없이 그대로 사용
+     */
     private fun fetchDynamic(
         bbox: BBox,
         resolution: Int,
         cachePrefix: String,
+        codeLength: Int,
+        dbFetcher: (Collection<Long>) -> List<Pair<AggCacheData, Long>>
+    ): DynamicResponse = fetchDynamicInternal(bbox, resolution, cachePrefix, 1, codeLength, dbFetcher)
+
+    /**
+     * EMD용 - 리(里) 포함/제외 선택 가능
+     * @param excludeRi true: 10자리 법정동코드를 8자리 읍면동코드로 변환 (리 제외)
+     *                  false: 10자리 법정동코드 그대로 사용 (리 포함)
+     */
+    private fun fetchDynamicEmd(
+        bbox: BBox,
+        resolution: Int,
+        cachePrefix: String,
+        excludeRi: Boolean,
+        codeLength: Int,
+        dbFetcher: (Collection<Long>) -> List<Pair<AggCacheData, Long>>
+    ): DynamicResponse = fetchDynamicInternal(bbox, resolution, cachePrefix, if (excludeRi) 100 else 1, codeLength, dbFetcher)
+
+    private fun fetchDynamicInternal(
+        bbox: BBox,
+        resolution: Int,
+        cachePrefix: String,
+        codeDivisor: Long,
+        codeLength: Int,
         dbFetcher: (Collection<Long>) -> List<Pair<AggCacheData, Long>>
     ): DynamicResponse {
         val startTime = System.currentTimeMillis()
@@ -126,22 +156,31 @@ class PnuAggDynamicService(
         }
 
         // 5. 행정구역 코드별 그루핑 (합산)
+        // EMD: codeDivisor=100 → 10자리를 8자리로 (리 제외)
+        // SGG/SD: codeDivisor=1 → 그대로
         val grouped = mutableMapOf<Long, GroupedData>()
         for (data in allData) {
-            val existing = grouped[data.code]
+            val groupKey = data.code / codeDivisor
+            val existing = grouped[groupKey]
             if (existing != null) {
                 existing.cnt += data.cnt
                 existing.sumLat += data.sumLat
                 existing.sumLng += data.sumLng
             } else {
-                grouped[data.code] = GroupedData(data.cnt, data.sumLat, data.sumLng)
+                grouped[groupKey] = GroupedData(data.cnt, data.sumLat, data.sumLng)
             }
         }
 
-        // 6. 결과 변환
+        // 6. 행정구역 이름 조회
+        val regionCodes = grouped.keys.map { it.toString().padStart(codeLength, '0') }
+        val regionNames = boundaryRegionCacheService.multiGet(regionCodes)
+
+        // 7. 결과 변환
         val result = grouped.map { (code, data) ->
+            val codeStr = code.toString().padStart(codeLength, '0')
             DynamicRegionResponse(
                 code = code,
+                name = regionNames[codeStr]?.name,
                 cnt = data.cnt,
                 lat = data.sumLat / data.cnt,
                 lng = data.sumLng / data.cnt

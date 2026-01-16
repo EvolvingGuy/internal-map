@@ -1,3 +1,4 @@
+<#import "common/indicator.ftl" as ind>
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -28,10 +29,12 @@
             color: #0891b2;
             margin: 8px 0;
         }
+<@ind.indicatorStyle/>
     </style>
 </head>
 <body>
     <div id="map"></div>
+<@ind.indicatorHtml/>
     <div id="info">
         <h3>${title}</h3>
         <div>줌레벨: <span id="zoomLevel">0</span></div>
@@ -72,13 +75,19 @@
                 .catch(err => console.error('fetch error:', err));
         }
 
+<@ind.indicatorScript/>
+
         function onMapIdle() {
             if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(fetchData, 300);
+            debounceTimer = setTimeout(() => {
+                fetchData();
+                fetchIndicator();
+            }, 300);
         }
 
         naver.maps.Event.addListener(map, 'idle', onMapIdle);
         fetchData();
+        fetchIndicator();
     </script>
 </body>
 </html>

@@ -48,6 +48,12 @@ object H3Util {
     }
 
     /**
+     * 좌표 → H3 인덱스 (Long)
+     */
+    fun latLngToH3(lat: Double, lng: Double, resolution: Int): Long =
+        h3.latLngToCell(lat, lng, resolution)
+
+    /**
      * H3 Long → String 변환
      */
     fun h3ToString(h3Index: Long): String = h3.h3ToString(h3Index)
