@@ -18,6 +18,8 @@
 - r3_pnu_agg_sd_05
 - 아래는 고정형 행정구역 리전 카운트
 - r3_pnu_agg_static_region
+- 아래는 행정구역 경계 정보 (10자리 법정동 코드)
+- mart_data.boundary_region
 ### 상수
 - region level
   - SD, SGG, EMD
@@ -123,68 +125,49 @@
     - FE 표시 형태
       - info 패널에 표시
   - FE 뷰포트에 따른 고정형 행정구역 그루핑
+    - 뷰포트에 걸친 행정구역의 전체 필지 카운트를 표시 (H3 기반이 아닌 행정구역 전체 카운트)
     - 경로 및 API 규칙
       - page) /page/pnu/agg/static/{region_level}
       - api) /api/pnu/agg/static/{region_level}
+    - region_level 파라미터
+      - emd: 읍면동 단위
+      - sgg: 시군구 단위
+      - sd: 시도 단위
     - 대상 테이블
-      - r3_pnu_agg_emd_10
-      - r3_pnu_agg_sgg_07
-      - r3_pnu_agg_sd_05
+      - r3_pnu_agg_emd_10, r3_pnu_agg_sgg_07, r3_pnu_agg_sd_05 (H3 → region code 매핑용)
+      - r3_pnu_agg_static_region (행정구역 전체 카운트 조회용)
     - API 로직 플로우
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │ 클라이언트 요청: bbox + regionLevel (emd/sgg/sd)                    │
-  └─────────────────────────────────────────────────────────────────────┘
-  │
-  ▼
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │ STEP 1: regionLevel → H3 resolution 결정                            │
-  │                                                                     │
-  │   emd → res 9 (66m)                                                │
-  │   sgg → res 7  (460m)                                               │
-  │   sd  → res 5  (3km)                                                │
-  └─────────────────────────────────────────────────────────────────────┘
-  │
-  ▼
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │ STEP 2: bbox → H3 indexes                                           │
-  │                                                                     │
-  │   예: 서울 bbox + res 9 → 500개 H3 셀                               │
-  │   예: 서울 bbox + res 5  → 20개 H3 셀                                │
-  └─────────────────────────────────────────────────────────────────────┘
-  │
-  ▼
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │ STEP 3: 캐시 조회 (H3 index 단위)                                    │
-  │                                                                     │
-  │   캐시 키: "region-fixed:{level}:{h3Index}"                         │
-  │   캐시 값: List<(regionCode, cnt, centerLat, centerLng)>            │
-  │                                                                     │
-  │   히트 → 바로 사용                                                   │
-  │   미스 → STEP 4로                                                    │
-  └─────────────────────────────────────────────────────────────────────┘
-  │ (캐시 미스)
-  ▼
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │ STEP 4: DB 조회 (2단계)                                              │
-  │                                                                     │
-  │   4-1. r3_pnu_agg_{level}_{res} 에서 H3 → region_code 매핑          │
-  │        SELECT DISTINCT bjdong_cd FROM r3_pnu_agg_emd_10             │
-  │        WHERE h3_index IN (...)                                      │
-  │                                                                     │
-  │   4-2. r3_pnu_region_count 에서 전체 카운트 조회                     │
-  │        SELECT * FROM r3_pnu_region_count                            │
-  │        WHERE region_level = 'emd' AND region_code IN (...)          │
-  │                                                                     │
-  │   4-3. H3별로 그룹핑하여 캐시 저장                                    │
-  └─────────────────────────────────────────────────────────────────────┘
-  │
-  ▼
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │ STEP 5: 중복 제거 후 응답                                            │
-  │                                                                     │
-  │   여러 H3에 같은 읍면동이 걸쳐있으면 중복 제거                        │
-  │   → 고유 region_code별 (cnt, center) 반환                           │
-  └─────────────────────────────────────────────────────────────────────┘
+      - regionLevel → H3 resolution 결정 (emd→10, sgg→7, sd→5)
+      - bbox → H3 indexes 폴리필
+      - H3 index 단위로 캐시 조회 (캐시 키: "region-fixed:{level}:{h3Index}")
+      - 캐시 미스 시 r3_pnu_agg_{level}_{res}에서 해당 H3에 걸친 region code 목록 조회
+      - r3_pnu_agg_static_region에서 region code의 전체 카운트 조회
+      - H3별로 그룹핑하여 캐시 저장
+      - 여러 H3에 같은 행정구역이 걸쳐있으면 중복 제거 후 응답
+    - FE 표시 형태
+      - 행정구역 중심점에 카운트 마커 표시
+  - 화면 중심점 행정구역 인디케이터
+    - 뷰포트 중심점이 속한 행정구역을 "시도 > 시군구 > 읍면동" 형태로 표시
+    - 경로 및 API 규칙
+      - api) /api/pnu/agg/indicator
+    - 대상 테이블
+      - r3_pnu_agg_emd_10 (중심점 H3 → region code 매핑)
+      - mart_data.boundary_region (region code → fullName 조회)
+    - API 로직 플로우
+      - bbox 중심점 계산: (swLat + neLat) / 2, (swLng + neLng) / 2
+      - 중심점 → H3 resolution 10 인덱스 변환
+      - emd_10 캐시에서 해당 H3의 region code 목록 조회
+      - 중심점과 가장 가까운 region 선택 (거리 제곱 비교)
+      - boundary_region 캐시에서 10자리 법정동 코드로 fullName 조회
+      - fullName의 공백을 " > "로 치환하여 응답
+    - 응답 형식
+      - indicator: "서울특별시 > 중구 > 신당동"
+      - regionCode: "1114010100" (10자리)
+      - elapsedMs: 응답 시간
+    - FE 표시 형태
+      - 화면 상단 중앙에 반투명 검정 배경의 pill 형태 풍선으로 표시
+      - Freemarker 공통 모듈: templates/pnu/common/indicator.ftl
+      - 레거시 제외 모든 PNU 페이지에서 사용
 
 ### 화면 서클 방식
 - 바둑판 그리드에만 해당 하는 규칙
@@ -271,3 +254,58 @@ center_lat double precision NOT NULL,
 center_lng double precision NOT NULL,
 PRIMARY KEY (level, code)
 );
+
+CREATE TABLE mart_data.boundary_region (
+region_code text NULL,
+region_english_name text NULL,
+region_korean_name text NULL,
+region_full_korean_name text NULL,
+geom public.geometry NULL,
+is_donut_polygon bool NULL,
+center_geom public.geometry NULL,
+center_lng float8 NULL,
+center_lat float8 NULL,
+area_paths jsonb NULL,
+gubun text NULL
+);
+CREATE INDEX idx_boundary_region_geom ON mart_data.boundary_region USING gist (geom);
+CREATE INDEX idx_boundary_region_region_code_gubun ON mart_data.boundary_region USING btree (region_code, gubun);
+CREATE INDEX idx_boundary_region_sido ON mart_data.boundary_region USING btree ("left"(region_code, 2));
+CREATE INDEX idx_boundary_region_sigungu ON mart_data.boundary_region USING btree ("left"(region_code, 5));
+
+-- 소스 필지 테이블
+CREATE TABLE external_data.land_characteristic (
+pnu text NULL,
+bjdong_cd text NULL,
+bjdong_nm text NULL,
+regstr_gb_cd text NULL,
+regstr_gb text NULL,
+jibun text NULL,
+jimok_sign text NULL,
+std_year text NULL,
+std_month text NULL,
+jimok_cd text NULL,
+jimok text NULL,
+area text NULL,
+jiyuk_cd_1 text NULL,
+jiyuk_1 text NULL,
+jiyuk_cd_2 text NULL,
+jiyuk_2 text NULL,
+land_use_cd text NULL,
+land_use text NULL,
+height_cd text NULL,
+height text NULL,
+shape_cd text NULL,
+shape text NULL,
+road_cd text NULL,
+road text NULL,
+price text NULL,
+crtn_day text NULL,
+geometry public.geometry(geometry, 4326) NULL,
+create_dt timestamptz NULL,
+center public.geometry(point, 4326) NULL,
+is_donut bool NULL
+);
+CREATE INDEX land_characteristic_bjdong_cd_index ON external_data.land_characteristic USING btree (bjdong_cd);
+CREATE INDEX land_characteristic_geometry_index ON external_data.land_characteristic USING gist (geometry);
+CREATE INDEX land_characteristic_pnu_index ON external_data.land_characteristic USING btree (pnu);
