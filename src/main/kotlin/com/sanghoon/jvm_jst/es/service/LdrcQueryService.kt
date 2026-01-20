@@ -56,7 +56,7 @@ class LdrcQueryService(
 
             LdrcRegionData(
                 code = code,
-                name = code.toString(),
+                name = code,
                 cnt = totalCount,
                 centerLat = avgLat,
                 centerLng = avgLng
@@ -127,7 +127,7 @@ class LdrcQueryService(
                 @Suppress("UNCHECKED_CAST")
                 val source = hit.source() as? Map<String, Any> ?: return@forEach
                 results.add(LdrcDoc(
-                    code = (source["code"] as? Number)?.toLong() ?: 0,
+                    code = source["code"]?.toString() ?: "",
                     count = (source["count"] as? Number)?.toInt() ?: 0,
                     sumLat = (source["sumLat"] as? Number)?.toDouble() ?: 0.0,
                     sumLng = (source["sumLng"] as? Number)?.toDouble() ?: 0.0
@@ -138,11 +138,11 @@ class LdrcQueryService(
         return results
     }
 
-    private data class LdrcDoc(val code: Long, val count: Int, val sumLat: Double, val sumLng: Double)
+    private data class LdrcDoc(val code: String, val count: Int, val sumLat: Double, val sumLng: Double)
 }
 
 data class LdrcRegionData(
-    val code: Long,
+    val code: String,
     val name: String,
     val cnt: Int,
     val centerLat: Double,

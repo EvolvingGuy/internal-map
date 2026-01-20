@@ -8,9 +8,11 @@ import com.sanghoon.jvm_jst.rds.entity.PnuAggEmd10
  * H3 기반으로 좌표 이동에 따라 행정구역별 데이터가 변동됨
  */
 data class LandDynamicRegionClusterDocument(
-    val id: String = "",              // "{level}{code}{h3Index}"
+    val id: String = "",              // "{level}_{code}_{h3Index}"
     val level: String = "",           // SD, SGG, EMD
-    val code: Long = 0,               // 행정구역 코드
+    val code: String = "",            // 행정구역 코드
+    val sdCode: String = "",          // 시도 코드 (앞 2자리)
+    val sggCode: String = "",         // 시군구 코드 (앞 5자리)
     val h3Index: Long = 0,            // H3 셀 인덱스
     val count: Int = 0,               // 필지 수
     val sumLat: Double = 0.0,         // 위도 합계
@@ -20,10 +22,13 @@ data class LandDynamicRegionClusterDocument(
         const val INDEX_NAME = "land_dynamic_region_cluster"
 
         fun fromEmd10(entity: PnuAggEmd10): LandDynamicRegionClusterDocument {
+            val codeStr = entity.code.toString()
             return LandDynamicRegionClusterDocument(
-                id = "EMD${entity.code}${entity.h3Index}",
+                id = "EMD_${entity.code}_${entity.h3Index}",
                 level = "EMD",
-                code = entity.code,
+                code = codeStr,
+                sdCode = codeStr.take(2),
+                sggCode = codeStr.take(5),
                 h3Index = entity.h3Index,
                 count = entity.cnt,
                 sumLat = entity.sumLat,
@@ -38,7 +43,9 @@ data class LandDynamicRegionClusterDocument(
  */
 data class LdrcAggData(
     val h3Index: Long,
-    val code: Long,
+    val code: String,
+    val sdCode: String,
+    val sggCode: String,
     var count: Long = 0,
     var sumLat: Double = 0.0,
     var sumLng: Double = 0.0
@@ -51,9 +58,11 @@ data class LdrcAggData(
 
     fun toDocument(level: String): LandDynamicRegionClusterDocument {
         return LandDynamicRegionClusterDocument(
-            id = "${level}${code}${h3Index}",
+            id = "${level}_${code}_${h3Index}",
             level = level,
             code = code,
+            sdCode = sdCode,
+            sggCode = sggCode,
             h3Index = h3Index,
             count = count.toInt(),
             sumLat = sumLat,

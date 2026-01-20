@@ -25,4 +25,9 @@ interface PnuBoundaryRegionRepository : JpaRepository<PnuBoundaryRegion, String>
      */
     @Query("SELECT b FROM PnuBoundaryRegion b WHERE b.regionCode IN :codes ORDER BY LENGTH(b.regionCode)")
     fun findHierarchy(codes: Collection<String>): List<PnuBoundaryRegion>
+
+    /**
+     * gubun으로 조회 (sido, sigungu, emd)
+     */
+    fun findByGubun(gubun: String): List<PnuBoundaryRegion>
 }

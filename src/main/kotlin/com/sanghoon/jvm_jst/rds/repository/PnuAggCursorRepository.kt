@@ -56,20 +56,4 @@ class PnuAggCursorRepository(
             )
         }
     }
-
-    /**
-     * EMD 10에서 유니크 SGG 코드 목록 추출 (앞 5자리)
-     */
-    fun findDistinctSggCodes(): List<Long> {
-        val sql = "SELECT DISTINCT code / 100000 * 100000 as sgg_code FROM manage.r3_pnu_agg_emd_10 ORDER BY sgg_code"
-        return jdbcTemplate.query(sql) { rs, _ -> rs.getLong("sgg_code") }
-    }
-
-    /**
-     * EMD 10에서 유니크 SD 코드 목록 추출 (앞 2자리)
-     */
-    fun findDistinctSdCodes(): List<Long> {
-        val sql = "SELECT DISTINCT code / 100000000 * 100000000 as sd_code FROM manage.r3_pnu_agg_emd_10 ORDER BY sd_code"
-        return jdbcTemplate.query(sql) { rs, _ -> rs.getLong("sd_code") }
-    }
 }
