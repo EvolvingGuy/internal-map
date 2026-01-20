@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package com.sanghoon.jvm_jst.rds.proto;
+
+option java_multiple_files = true;
+option java_outer_classname = "PnuLandProto";
+
+// PNU 토지 데이터 (geometry를 WKB로 저장)
+message PnuLandDataProto {
+  string pnu = 1;
+  bytes geometry_wkb = 2;    // Polygon/MultiPolygon WKB
+  bytes center_wkb = 3;      // Point WKB
+  optional double area = 4;
+  optional bool is_donut = 5;
+}

@@ -1,0 +1,103 @@
+package com.sanghoon.jvm_jst.es.service
+
+import co.elastic.clients.elasticsearch.ElasticsearchClient
+import com.sanghoon.jvm_jst.es.document.LandStaticRegionClusterDocument
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+
+/**
+ * LSRC 고정형 행정구역 클러스터 조회 서비스
+ */
+@Service
+class LsrcQueryService(
+    private val esClient: ElasticsearchClient
+) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    companion object {
+        const val INDEX_NAME = LandStaticRegionClusterDocument.INDEX_NAME
+    }
+
+    /**
+     * bbox 내 고정형 클러스터 조회
+     * @param level SD, SGG, EMD
+     */
+    fun findByBbox(level: String, swLng: Double, swLat: Double, neLng: Double, neLat: Double): LsrcQueryResult {
+        val startTime = System.currentTimeMillis()
+
+        val response = esClient.search({ s ->
+            s.index(INDEX_NAME)
+                .size(1000)
+                .profile(true)
+                .query { q ->
+                    q.bool { b ->
+                        b.must { m -> m.term { t -> t.field("level").value(level) } }
+                            .must { m ->
+                                m.geoBoundingBox { geo ->
+                                    geo.field("center")
+                                        .boundingBox { bb ->
+                                            bb.tlbr { tlbr ->
+                                                tlbr.topLeft { tl -> tl.latlon { ll -> ll.lat(neLat).lon(swLng) } }
+                                                    .bottomRight { br -> br.latlon { ll -> ll.lat(swLat).lon(neLng) } }
+                                            }
+                                        }
+                                }
+                            }
+                    }
+                }
+                .source { src -> src.filter { f -> f.includes("code", "name", "count", "center") } }
+        }, Map::class.java)
+
+        val esTook = response.took()
+        logProfile(response, esTook)
+
+        val regions = response.hits().hits().mapNotNull { hit ->
+            @Suppress("UNCHECKED_CAST")
+            val source = hit.source() as? Map<String, Any> ?: return@mapNotNull null
+            val center = source["center"] as? Map<*, *>
+            LsrcRegionData(
+                code = source["code"]?.toString() ?: "",
+                name = source["name"]?.toString() ?: "",
+                cnt = (source["count"] as? Number)?.toInt() ?: 0,
+                centerLat = (center?.get("lat") as? Number)?.toDouble() ?: 0.0,
+                centerLng = (center?.get("lon") as? Number)?.toDouble() ?: 0.0
+            )
+        }
+
+        val totalCount = regions.sumOf { it.cnt }
+        val elapsed = System.currentTimeMillis() - startTime
+
+        log.info("[LSRC] level={}, regions={}, totalCount={}, ES took={}ms, total={}ms",
+            level, regions.size, totalCount, esTook, elapsed)
+
+        return LsrcQueryResult(regions, totalCount, elapsed)
+    }
+
+    private fun logProfile(response: co.elastic.clients.elasticsearch.core.SearchResponse<Map<*, *>>, esTook: Long) {
+        val profile = response.profile() ?: return
+        val shards = profile.shards()
+
+        shards.forEachIndexed { idx, shardProfile ->
+            shardProfile.searches().forEach { search ->
+                search.query().forEach { queryProfile ->
+                    val timeMs = String.format("%.2f", queryProfile.timeInNanos() / 1_000_000.0)
+                    log.info("[LSRC Profile] 샤드[{}] {} - {}ms", idx, queryProfile.type(), timeMs)
+                }
+            }
+        }
+    }
+}
+
+data class LsrcRegionData(
+    val code: String,
+    val name: String,
+    val cnt: Int,
+    val centerLat: Double,
+    val centerLng: Double
+)
+
+data class LsrcQueryResult(
+    val regions: List<LsrcRegionData>,
+    val totalCount: Int,
+    val elapsedMs: Long
+)

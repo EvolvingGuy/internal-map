@@ -187,13 +187,16 @@ PRIMARY KEY (code, h3_index)
 
 CREATE TABLE manage.r3_pnu_agg_emd_10
 (
+id       bigserial        PRIMARY KEY,
 code     bigint           NOT NULL,
 h3_index bigint           NOT NULL,
 cnt      int              NOT NULL,
 sum_lat  double precision NOT NULL,
 sum_lng  double precision NOT NULL,
-PRIMARY KEY (code, h3_index)
+UNIQUE (code, h3_index)
 );
+CREATE INDEX idx_r3_pnu_agg_emd_10_id ON manage.r3_pnu_agg_emd_10 USING btree (id);
+CREATE INDEX idx_r3_pnu_agg_emd_10_h3 ON manage.r3_pnu_agg_emd_10 USING btree (h3_index);
 
 CREATE TABLE manage.r3_pnu_agg_emd_09
 (

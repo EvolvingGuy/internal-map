@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package com.sanghoon.jvm_jst.pnu.proto;
+package com.sanghoon.jvm_jst.rds.proto;
 
 option java_multiple_files = true;
 option java_outer_classname = "PnuAggProto";

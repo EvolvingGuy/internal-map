@@ -24,6 +24,10 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+
+    // Elasticsearch - Spring Boot 4.0.1 + Spring Data Elasticsearch 6.0.x + ES 9.x
+    // starter가 elasticsearch-java 의존성 관리함 (Rest5Client 포함)
+    implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-freemarker")
@@ -37,6 +41,7 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("com.github.luben:zstd-jni:1.5.7-4")
     implementation("org.locationtech.jts:jts-core:1.20.0")
+    implementation("org.hibernate.orm:hibernate-spatial")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.apache.commons:commons-csv:1.12.0")
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
