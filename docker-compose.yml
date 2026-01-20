@@ -1,6 +1,6 @@
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
@@ -9,7 +9,8 @@ services:
     ports:
       - "9200:9200"
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      # 서비스 내에서도 이전 볼륨 이름을 그대로 적어줘야 함
+      - jvm_jst_es_data:/usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q 'green\\|yellow'"]
       interval: 10s
@@ -17,7 +18,7 @@ services:
       retries: 10
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:9.0.0
+    image: docker.elastic.co/kibana/kibana:8.17.0
     container_name: kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
@@ -27,5 +28,20 @@ services:
       elasticsearch:
         condition: service_healthy
 
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:8.17.0
+    container_name: metricbeat
+    user: root
+    command: ["metricbeat", "-e", "--system.hostfs=/hostfs", "--strict.perms=false"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_started
+    volumes:
+      - ./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+
 volumes:
-  es_data:
+  # 여기가 정의부. 위 서비스에서 쓴 이름과 100% 일치해야 함
+  jvm_jst_es_data:
+    external: true

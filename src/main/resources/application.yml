@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: geo_poc
+
+  # 날짜 출력 형식: 배열 [2024,1,15] 대신 ISO 문자열 "2024-01-15"로 직렬화
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+  datasource:
+    url: jdbc:postgresql://localhost:6432/rtb_int
+    username: sanghoonseo
+    password:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 60
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+
+  freemarker:
+    template-loader-path: classpath:/templates/
+    suffix: .ftl
+
+  elasticsearch:
+    uris: http://localhost:9200
+
+server:
+  port: 3000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,heapdump,threaddump,env
+  endpoint:
+    health:
+      show-details: always
+
+naver:
+  map:
+    client-id: o2vzs98jaj
+    client-secret:

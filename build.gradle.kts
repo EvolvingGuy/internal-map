@@ -1,15 +1,14 @@
 plugins {
-    kotlin("jvm") version "2.2.21"
-    kotlin("plugin.spring") version "2.2.21"
-    id("org.springframework.boot") version "4.0.1"
+    kotlin("jvm") version "2.0.21"
+    kotlin("plugin.spring") version "2.0.21"
+    id("org.springframework.boot") version "3.5.9"
     id("io.spring.dependency-management") version "1.1.7"
-    kotlin("plugin.jpa") version "2.2.21"
-    id("com.google.protobuf") version "0.9.4"
+    kotlin("plugin.jpa") version "2.0.21"
 }
 
-group = "com.sanghoon"
+group = "com.datahub"
 version = "0.0.1-SNAPSHOT"
-description = "jvm_jst"
+description = "geo_poc"
 
 java {
     toolchain {
@@ -23,43 +22,30 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
-    // Elasticsearch - Spring Boot 4.0.1 + Spring Data Elasticsearch 6.0.x + ES 9.x
-    // starter가 elasticsearch-java 의존성 관리함 (Rest5Client 포함)
+    // Elasticsearch - Spring Boot 3.5.x + Spring Data Elasticsearch 5.4.x + ES 8.x
     implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
     runtimeOnly("org.postgresql:postgresql")
-    implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-freemarker")
     implementation("org.freemarker:freemarker:2.3.34")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("tools.jackson.module:jackson-module-kotlin")
-    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-data-redis-test")
-    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    implementation("com.github.luben:zstd-jni:1.5.7-4")
+    // Kotlin 클래스 직렬화 지원 (data class, nullable 등)
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    // LocalDate, LocalDateTime 등 Java 8+ 날짜 타입 직렬화 지원
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
     implementation("org.locationtech.jts:jts-core:1.20.0")
     implementation("org.hibernate.orm:hibernate-spatial")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.apache.commons:commons-csv:1.12.0")
-    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
     implementation("com.uber:h3:4.1.1")
-    implementation("com.google.protobuf:protobuf-java:4.29.3")
-    implementation("com.google.protobuf:protobuf-kotlin:4.29.3")
-}
-
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:4.29.3"
-    }
 }
 
 kotlin {
     compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+        freeCompilerArgs.addAll("-Xjsr305=strict")
     }
 }
 allOpen {
