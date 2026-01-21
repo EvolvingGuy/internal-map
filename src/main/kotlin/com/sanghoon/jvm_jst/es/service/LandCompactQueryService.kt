@@ -76,7 +76,10 @@ class LandCompactQueryService(
      * pnu 목록으로 land_compact 조회
      * @return pnu -> LandCompactData 맵
      */
-    fun findByPnuIds(pnuIds: Collection<String>): Map<String, LandCompactData> {
+    fun findByPnuIds(
+        pnuIds: Collection<String>,
+        filter: LcAggFilter = LcAggFilter()
+    ): Map<String, LandCompactData> {
         if (pnuIds.isEmpty()) return emptyMap()
 
         val startTime = System.currentTimeMillis()
@@ -85,9 +88,15 @@ class LandCompactQueryService(
             s.index(INDEX_NAME)
                 .size(pnuIds.size.coerceAtMost(MAX_SIZE))
                 .query { q ->
-                    q.terms { t ->
-                        t.field("pnu")
-                            .terms { tv -> tv.value(pnuIds.map { FieldValue.of(it) }) }
+                    q.bool { bool ->
+                        bool.must { m ->
+                            m.terms { t ->
+                                t.field("pnu")
+                                    .terms { tv -> tv.value(pnuIds.map { FieldValue.of(it) }) }
+                            }
+                        }
+                        applyFilters(bool, filter)
+                        bool
                     }
                 }
         }, Map::class.java)
@@ -97,7 +106,7 @@ class LandCompactQueryService(
         }.associateBy { it.pnu }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LcQuery] pnuIds={}, results={}, elapsed={}ms", pnuIds.size, result.size, elapsed)
+        log.info("[LcQuery] pnuIds={}, results={}, hasFilter={}, elapsed={}ms", pnuIds.size, result.size, filter.hasAnyFilter(), elapsed)
 
         return result
     }

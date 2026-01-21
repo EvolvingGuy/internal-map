@@ -101,8 +101,8 @@ class MarkerService(
             )
         }
 
-        // 2. land_compact 조회 (pnu 목록으로)
-        val lcDataMap = lcQueryService.findByPnuIds(regPnuIds)
+        // 2. land_compact 조회 (pnu 목록으로, 필터 적용)
+        val lcDataMap = lcQueryService.findByPnuIds(regPnuIds, request.lcFilter)
 
         // 3. registration aggregation (land_compact에 있는 pnu만)
         val commonPnuIds = regPnuIds.intersect(lcDataMap.keys)
