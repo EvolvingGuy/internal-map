@@ -30,7 +30,7 @@ class LcIndexingService(
 
     companion object {
         const val INDEX_NAME = LandCompactDocument.INDEX_NAME
-        const val PARALLELISM = 10
+        const val PARALLELISM = 20
         const val BATCH_SIZE = 3000
         const val BULK_SIZE = 3000
     }
@@ -45,13 +45,13 @@ class LcIndexingService(
         val results = mutableMapOf<String, Any>()
 
         ensureIndexExists()
-        log.info("[LC] 인덱스 생성 완료")
+        log.info("[LC] ========== 인덱싱 시작 ==========")
 
         val totalCount = landCharRepo.countAll()
         log.info("[LC] 전체 필지 수: {}", totalCount)
 
         val boundaries = landCharRepo.findPnuBoundaries(PARALLELISM)
-        log.info("[LC] PNU 경계: {} 개", boundaries.size)
+        log.info("[LC] {} 개 워커로 병렬 처리 시작", boundaries.size - 1)
 
         val processedCount = AtomicInteger(0)
         val indexedCount = AtomicInteger(0)
@@ -63,6 +63,7 @@ class LcIndexingService(
                         workerIndex = workerIndex,
                         minPnu = boundaries[workerIndex],
                         maxPnu = boundaries[workerIndex + 1],
+                        totalCount = totalCount,
                         processedCount = processedCount,
                         indexedCount = indexedCount
                     )
@@ -72,10 +73,12 @@ class LcIndexingService(
         }
 
         esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-        log.info("[LC] forcemerge 완료")
 
         val elapsed = System.currentTimeMillis() - startTime
+        log.info("[LC] ========== 인덱싱 완료 ==========")
+        log.info("[LC] 처리: {}/{}, 인덱싱: {}, 소요: {}ms", processedCount.get(), totalCount, indexedCount.get(), elapsed)
 
+        results["totalCount"] = totalCount
         results["processed"] = processedCount.get()
         results["indexed"] = indexedCount.get()
         results["elapsedMs"] = elapsed
@@ -138,6 +141,7 @@ class LcIndexingService(
         workerIndex: Int,
         minPnu: String,
         maxPnu: String,
+        totalCount: Long,
         processedCount: AtomicInteger,
         indexedCount: AtomicInteger
     ) {
@@ -145,27 +149,38 @@ class LcIndexingService(
         var workerProcessed = 0
         var workerIndexed = 0
 
+        log.info("[LC] Worker-{} 시작: pnu {} ~ {}", workerIndex, minPnu, maxPnu)
+
         while (true) {
+            val t0 = System.currentTimeMillis()
             val rows = landCharRepo.findForLcIndexing(minPnu, maxPnu, lastPnu, BATCH_SIZE)
+            val t1 = System.currentTimeMillis()
             if (rows.isEmpty()) break
+
+            log.info("[LC] W-{} land_char 조회: {}ms ({}건)", workerIndex, t1 - t0, rows.size)
 
             val docs = processBatch(rows, workerIndex)
 
             if (docs.isNotEmpty()) {
+                val tBulk0 = System.currentTimeMillis()
                 bulkIndex(docs)
+                val tBulk1 = System.currentTimeMillis()
+                log.info("[LC] W-{} bulkIndex: {}ms ({}건)", workerIndex, tBulk1 - tBulk0, docs.size)
             }
 
             lastPnu = rows.last().pnu
             workerProcessed += rows.size
             workerIndexed += docs.size
 
-            if (workerProcessed % 15000 == 0) {
-                log.info("[LC] Worker-{} 진행: {} 건 (인덱싱: {})", workerIndex, workerProcessed, workerIndexed)
+            val globalProcessed = processedCount.addAndGet(rows.size)
+            indexedCount.addAndGet(docs.size)
+
+            if (globalProcessed % 100000 < rows.size) {
+                val pct = String.format("%.1f", globalProcessed * 100.0 / totalCount)
+                log.info("[LC] 진행: {}/{} ({}%), 인덱싱: {}", globalProcessed, totalCount, pct, indexedCount.get())
             }
         }
 
-        processedCount.addAndGet(workerProcessed)
-        indexedCount.addAndGet(workerIndexed)
         log.info("[LC] Worker-{} 완료: {} 건 (인덱싱: {})", workerIndex, workerProcessed, workerIndexed)
     }
 
@@ -176,9 +191,18 @@ class LcIndexingService(
         val pnuList = rows.map { it.pnu }
         val buildingPnuList = pnuList.map { PnuUtils.convertLandPnuToBuilding(it) }
 
+        var t0 = System.currentTimeMillis()
         val summariesMap = loadBuildingSummaries(buildingPnuList, workerIndex)
+        val t1 = System.currentTimeMillis()
+
         val outlineMap = loadBuildingOutlines(buildingPnuList, workerIndex)
+        val t2 = System.currentTimeMillis()
+
         val tradeMap = loadRealEstateTrades(pnuList, workerIndex)
+        val t3 = System.currentTimeMillis()
+
+        log.info("[LC] W-{} 조회시간: summaries={}ms, outline={}ms, trade={}ms",
+            workerIndex, t1 - t0, t2 - t1, t3 - t2)
 
         return rows.mapNotNull { row ->
             createDocument(row, summariesMap, outlineMap, tradeMap)

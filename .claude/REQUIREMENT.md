@@ -88,7 +88,7 @@
 - pnu (keyword, String not null. PNU 코드 19자리)
 - sd (integer eagerGlobalOrdinals, Int not null. 시도 코드 2자리)
 - sgg (integer eagerGlobalOrdinals, Int not null. 시군구 코드 5자리)
-- emd (integer eagerGlobalOrdinals, Int not null. 읍면동 코드 10자리)
+- emd (keyword eagerGlobalOrdinals, String not null. 읍면동 코드 8자리)
 - land
   - land.jiyukCd1 (keyword, Enum<LandJiyuk1> nullable, 용도지역으로 값은 별도 기록)
   - land.jimokCd (keyword, Enum<LandJimok> nullable, 지목으로 값은 별도 기록)
@@ -128,9 +128,274 @@
 
 
 # 필요한 API
-## 필터 구분
+
+## LC Aggregation Filter (NEW)
+LC 3개 페이지 (sd, sgg, emd) 공통 필터 스펙
+
+### UI 구성
+- 위치: 우측 사이드바 (non-collapse, overflow-y: auto)
+- 섹션 순서: Building -> Land -> Trade
+- 필터 변경 시 즉시 적용 (debounce 300ms)
+- Reset All 버튼: 사이드바 상단에 위치
+
+### API 파라미터 바인딩
+- List 타입: 콤마 구분 (ex: `?buildingMainPurpsCdNm=APARTMENT,FACTORY`)
+- Range 타입: 별도 파라미터 (ex: `?buildingTotAreaMin=100&buildingTotAreaMax=500`)
+
+### Kotlin Filter Class
+- 클래스명: LcAggFilter
+- 필드 네이밍: depth 제외, prefix로 구분 (ex: buildingArchArea)
+- 필터 상태 판별:
+  - `null` 또는 `emptyList()` → 필터 미적용 (전체 조회)
+  - 값이 있으면 필터 적용
+- `fun hasAnyFilter(): Boolean` → 하나라도 설정되어 있으면 true
+
+### Building Section
+| Field | Kotlin Type | ES Field | ES Type | UI Type | Values/Description |
+|-------|-------------|----------|---------|---------|---------------------|
+| buildingMainPurpsCdNm | List<String>? | building.mainPurpsCdNm | keyword | checkbox | 단독주택, 제2종근린생활시설, 제1종근린생활시설, 공동주택, 창고시설, 공장, 업무시설, 숙박시설, 판매시설, 노유자시설, 교육연구시설, 운동시설, 동물및식물관련시설, 위험물저장및처리시설, 자동차관련시설 |
+| buildingRegstrGbCdNm | List<String>? | building.regstrGbCdNm | keyword | checkbox | 일반, 집합 |
+| buildingPmsDayRecent5y | Boolean? | building.pmsDay | date | checkbox | true=filter recent 5 years |
+| buildingStcnsDayRecent5y | Boolean? | building.stcnsDay | date | checkbox | true=filter recent 5 years |
+| buildingUseAprDayStart | Int? | building.useAprDay | date | number | year (gte yyyy-01-01) |
+| buildingUseAprDayEnd | Int? | building.useAprDay | date | number | year (lte yyyy-12-31) |
+| buildingTotAreaMin | BigDecimal? | building.totArea | scaled_float | number | gte |
+| buildingTotAreaMax | BigDecimal? | building.totArea | scaled_float | number | lte |
+| buildingPlatAreaMin | BigDecimal? | building.platArea | scaled_float | number | gte |
+| buildingPlatAreaMax | BigDecimal? | building.platArea | scaled_float | number | lte |
+| buildingArchAreaMin | BigDecimal? | building.archArea | scaled_float | number | gte |
+| buildingArchAreaMax | BigDecimal? | building.archArea | scaled_float | number | lte |
+
+### Land Section
+| Field | Kotlin Type | ES Field | ES Type | UI Type | Values/Description |
+|-------|-------------|----------|---------|---------|---------------------|
+| landJiyukCd1 | List<String>? | land.jiyukCd1 | keyword | checkbox | See LandJiyuk1 enum below |
+| landJimokCd | List<String>? | land.jimokCd | keyword | checkbox | See LandJimok enum below |
+| landAreaMin | Double? | land.area | double | number | gte |
+| landAreaMax | Double? | land.area | double | number | lte |
+| landPriceMin | Long? | land.price | long | number | gte |
+| landPriceMax | Long? | land.price | long | number | lte |
+
+### Trade Section
+| Field | Kotlin Type | ES Field | ES Type | UI Type | Values/Description |
+|-------|-------------|----------|---------|---------|---------------------|
+| tradeProperty | List<String>? | lastRealEstateTrade.property | keyword | checkbox | APARTMENT, COMMERCIAL_BUILDING, FACTORY_WAREHOUSE, FACTORY_WAREHOUSE_MULTI, LAND, MULTI, OFFICETEL, SHOPPING_AND_OFFICE, SINGLE |
+| tradeContractDateStart | LocalDate? | lastRealEstateTrade.contractDate | date | date | gte |
+| tradeContractDateEnd | LocalDate? | lastRealEstateTrade.contractDate | date | date | lte |
+| tradeEffectiveAmountMin | Long? | lastRealEstateTrade.effectiveAmount | long | number | gte |
+| tradeEffectiveAmountMax | Long? | lastRealEstateTrade.effectiveAmount | long | number | lte |
+| tradeBuildingAmountPerM2Min | BigDecimal? | lastRealEstateTrade.buildingAmountPerM2 | scaled_float | number | gte |
+| tradeBuildingAmountPerM2Max | BigDecimal? | lastRealEstateTrade.buildingAmountPerM2 | scaled_float | number | lte |
+| tradeLandAmountPerM2Min | BigDecimal? | lastRealEstateTrade.landAmountPerM2 | scaled_float | number | gte |
+| tradeLandAmountPerM2Max | BigDecimal? | lastRealEstateTrade.landAmountPerM2 | scaled_float | number | lte |
+
+### Building Main Purpose Values (Top 15, 한글 그대로 사용)
+| Value | Label | Count |
+|-------|-------|-------|
+| 단독주택 | 단독주택 | 3,409,648 |
+| 제2종근린생활시설 | 제2종근린 | 561,947 |
+| 제1종근린생활시설 | 제1종근린 | 465,851 |
+| 공동주택 | 공동주택 | 305,609 |
+| 창고시설 | 창고시설 | 247,956 |
+| 동물및식물관련시설 | 동식물시설 | 208,870 |
+| 공장 | 공장 | 165,775 |
+| 노유자시설 | 노유자시설 | 36,114 |
+| 숙박시설 | 숙박시설 | 32,681 |
+| 업무시설 | 업무시설 | 30,057 |
+| 교육연구시설 | 교육연구 | 27,770 |
+| 종교시설 | 종교시설 | 24,177 |
+| 자동차관련시설 | 자동차시설 | 20,762 |
+| 위험물저장및처리시설 | 위험물시설 | 17,675 |
+| 문화및집회시설 | 문화집회 | 8,411 |
+
+### Building Registry Type Values (한글 그대로 사용)
+| Value | Label |
+|-------|-------|
+| 일반 | 일반 |
+| 집합 | 집합 |
+
+### Trade Property Values (영어 코드 그대로 사용)
+| Value | Label | Count |
+|-------|-------|-------|
+| LAND | Land | 3,783,326 |
+| SINGLE | Single | 932,362 |
+| COMMERCIAL_BUILDING | Commercial Building | 250,477 |
+| MULTI | Multi | 219,135 |
+| FACTORY_WAREHOUSE | Factory/Warehouse | 84,992 |
+| SHOPPING_AND_OFFICE | Shopping & Office | 64,598 |
+| APARTMENT | Apartment | 23,897 |
+| OFFICETEL | Officetel | 4,773 |
+| FACTORY_WAREHOUSE_MULTI | Factory/Warehouse Multi | 2,089 |
+
+### Land Jiyuk (Zone) Values (Top 10, 숫자 코드 사용)
+| Code | Label | Count |
+|------|-------|-------|
+| 64 | 계획관리 | 9,767,919 |
+| 71 | 농림 | 6,659,083 |
+| 63 | 생산관리 | 3,348,197 |
+| 62 | 보전관리 | 3,309,832 |
+| 43 | 자연녹지 | 3,270,901 |
+| 14 | 2종일반주거 | 2,674,084 |
+| 13 | 1종일반주거 | 1,647,248 |
+| 44 | 개발제한 | 1,134,206 |
+| 22 | 일반상업 | 686,872 |
+| 81 | 자연환경보전 | 676,008 |
+
+### Land Jimok (Land Category) Values (Top 10, 숫자 코드 사용)
+| Code | Label | Count |
+|------|-------|-------|
+| 02 | 답 | 7,576,801 |
+| 08 | 대 | 7,479,076 |
+| 01 | 전 | 6,978,516 |
+| 05 | 임야 | 4,787,553 |
+| 14 | 도로 | 4,514,624 |
+| 18 | 구거 | 944,795 |
+| 28 | 잡종지 | 571,676 |
+| 17 | 하천 | 549,662 |
+| 09 | 공장용지 | 316,873 |
+| 03 | 과수원 | 276,831 |
+
+
+## 필터 구분 (Legacy)
 - 설정 필터 (위경도, 클러스터 구분)
 - 비즈니스 필터 (설정 필터 이외로 비즈니스 관련 정보)
+  - mainPurpsCdNm 체크박스로 IN절 방식
+    - 가설건축물
+    - 공공업무시설
+    - 공공시설
+    - 공공용시설
+    - 공장
+    - 공동주택
+    - 관광숙박시설
+    - 관광휴게시설
+    - 교정및군사시설
+    - 교정시설
+    - 교육연구및복지시설
+    - 교육연구시설
+    - 교회
+    - 국방
+    - 군사시설
+    - 근린생활시설
+    - 기숙사
+    - 기타공공시설
+    - 기타공장
+    - 기타동식물관련시설
+    - 기타사무소
+    - 기타운동시설
+    - 기타일반숙박시설
+    - 기타자원순환관련시설
+    - 기타제1종근린생활시설
+    - 기타제2종근린생활시설
+    - 기타창고시설
+    - 기도원
+    - 다가구주택
+    - 다세대주택
+    - 다중주택
+    - 단란주점
+    - 단독주택
+    - 당구장
+    - 도축장
+    - 동물및식물관련시설
+    - 동사무소
+    - 마을공동시설
+    - 묘지관련시설
+    - 문화및집회시설
+    - 발전시설
+    - 방송통신시설
+    - 변전소
+    - 부대시설
+    - 분뇨.쓰레기처리시설
+    - 분뇨처리시설
+    - 사당
+    - 사무소
+    - 사찰
+    - 사회복지시설
+    - 사진관
+    - 상점(소매점)
+    - 성당
+    - 소매시장
+    - 소매점
+    - 소방서
+    - 수련시설
+    - 수리점
+    - 숙박시설
+    - 시장
+    - 아동관련시설
+    - 아파트
+    - 야영장시설
+    - 양수장
+    - 어린이집
+    - 업무시설
+    - 여관
+    - 연구소
+    - 연립주택
+    - 온실
+    - 우체국
+    - 운수시설
+    - 운동시설
+    - 위락시설
+    - 위험물저장및처리시설
+    - 유치원
+    - 유흥주점
+    - 의료시설
+    - 일반공장
+    - 일반업무시설
+    - 일반음식점
+    - 일반숙박시설
+    - 자원순환관련시설
+    - 자동차관련시설
+    - 장례시설
+    - 제실
+    - 정비공장
+    - 정수장
+    - 제1종근린생활시설
+    - 제2종근린생활시설
+    - 제조업소
+    - 종교시설
+    - 종교집회장
+    - 주유소
+    - 창고시설
+    - 축사
+    - 체육도장
+    - 파출소
+    - 판매및영업시설
+    - 판매시설
+    - 학원
+    - 휴게소
+    - 휴게음식점
+    - 휴양콘도미니엄
+    - 화장실
+  - regstrGbCdNm 체크박스로 값은 일반, 집합 두 가지 IN 절 방식
+    - 일반
+    - 집합
+  - pmsDay  체크박스로 체크 되는 경우에 각 값이 있는 것들 이내에서 현재 기준 5년 이내인 것
+  - stcnsDay 체크박스로 체크 되는 경우에 각 값이 있는 것들 이내에서 현재 기준 5년 이내인 것
+  - useAprDay (nullable Int, start ~ end) year 기반으로 start는 초월초일, end는 막월말일 형태로. 그냥 연도만 넣어도 되면 그렇게
+  - totArea (nullable BigDecimal, start, end) goe, loe 각자
+  - platArea (nullable BigDecimal, start, end) goe, loe 각자
+  - archArea (nullable BigDecimal, start, end) goe, loe 각자
+
+  - jiyukCd1 IN절 값은 하단 참고
+  - jimokCd IN절 값은 하단 참고
+  - area start, end
+  - price start, end
+
+  - property IN절
+    - APARTMENT
+    - COMMERCIAL_BUILDING
+    - FACTORY_WAREHOUSE
+    - FACTORY_WAREHOUSE_MULTI
+    - LAND
+    - MULTI
+    - OFFICETEL
+    - SHOPPING_AND_OFFICE
+    - SINGLE
+  - contractDate LocalDate start, end
+  - effectiveAmount Long start, end
+  - buildingAmountPerM2 BigDecimal start, end
+  - landAmountPerM2 BigDecimal start, end
+
+
 ## API 목록
 - 클러스터 API
   - 비즈니스 필터 X
@@ -144,6 +409,9 @@
   - 비즈니스 필터 X
     - 필터 O
 - 마커 API
+
+
+
 
 # 타입 관련
 ## LandJimok 지목
@@ -201,4 +469,110 @@
 준공업지역	33
 준주거지역	16
 중심상업지역	21
-	
+
+
+    - 가설건축물
+    - 공공업무시설
+    - 공공시설
+    - 공공용시설
+    - 공장
+    - 공동주택
+    - 관광숙박시설
+    - 관광휴게시설
+    - 교정및군사시설
+    - 교정시설
+    - 교육연구및복지시설
+    - 교육연구시설
+    - 교회
+    - 국방
+    - 군사시설
+    - 근린생활시설
+    - 기숙사
+    - 기타공공시설
+    - 기타공장
+    - 기타동식물관련시설
+    - 기타사무소
+    - 기타운동시설
+    - 기타일반숙박시설
+    - 기타자원순환관련시설
+    - 기타제1종근린생활시설
+    - 기타제2종근린생활시설
+    - 기타창고시설
+    - 기도원
+    - 다가구주택
+    - 다세대주택
+    - 다중주택
+    - 단란주점
+    - 단독주택
+    - 당구장
+    - 도축장
+    - 동물및식물관련시설
+    - 동사무소
+    - 마을공동시설
+    - 묘지관련시설
+    - 문화및집회시설
+    - 발전시설
+    - 방송통신시설
+    - 변전소
+    - 부대시설
+    - 분뇨.쓰레기처리시설
+    - 분뇨처리시설
+    - 사당
+    - 사무소
+    - 사찰
+    - 사회복지시설
+    - 사진관
+    - 상점(소매점)
+    - 성당
+    - 소매시장
+    - 소매점
+    - 소방서
+    - 수련시설
+    - 수리점
+    - 숙박시설
+    - 시장
+    - 아동관련시설
+    - 아파트
+    - 야영장시설
+    - 양수장
+    - 어린이집
+    - 업무시설
+    - 여관
+    - 연구소
+    - 연립주택
+    - 온실
+    - 우체국
+    - 운수시설
+    - 운동시설
+    - 위락시설
+    - 위험물저장및처리시설
+    - 유치원
+    - 유흥주점
+    - 의료시설
+    - 일반공장
+    - 일반업무시설
+    - 일반음식점
+    - 일반숙박시설
+    - 자원순환관련시설
+    - 자동차관련시설
+    - 장례시설
+    - 제실
+    - 정비공장
+    - 정수장
+    - 제1종근린생활시설
+    - 제2종근린생활시설
+    - 제조업소
+    - 종교시설
+    - 종교집회장
+    - 주유소
+    - 창고시설
+    - 축사
+    - 체육도장
+    - 파출소
+    - 판매및영업시설
+    - 판매시설
+    - 학원
+    - 휴게소
+    - 휴게음식점
+    - 휴양콘도미니엄
+    - 화장실

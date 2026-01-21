@@ -17,9 +17,11 @@ object ParsingUtils {
 
     /**
      * 문자열 -> Long 변환 (빈 값은 null)
+     * 소수점 문자열도 처리 (예: "4190.0" -> 4190)
      */
     fun toLongOrNull(value: String?): Long? {
-        return value?.takeIf { it.isNotBlank() }?.toLongOrNull()
+        val str = value?.takeIf { it.isNotBlank() } ?: return null
+        return str.toLongOrNull() ?: str.toDoubleOrNull()?.toLong()
     }
 
     /**

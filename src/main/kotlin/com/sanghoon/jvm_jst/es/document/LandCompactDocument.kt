@@ -12,7 +12,7 @@ data class LandCompactDocument(
     val pnu: String,          // PNU 코드 19자리
     val sd: String,           // 시도 코드 2자리 (keyword, eagerGlobalOrdinals)
     val sgg: String,          // 시군구 코드 5자리 (keyword, eagerGlobalOrdinals)
-    val emd: String,          // 읍면동 코드 10자리 (keyword, eagerGlobalOrdinals)
+    val emd: String,          // 읍면동 코드 8자리 (keyword, eagerGlobalOrdinals)
     val land: LandData,
     val building: BuildingData?,
     val lastRealEstateTrade: RealEstateTradeData?

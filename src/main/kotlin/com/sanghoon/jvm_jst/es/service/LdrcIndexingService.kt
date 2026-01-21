@@ -6,7 +6,6 @@ import co.elastic.clients.elasticsearch.core.bulk.BulkOperation
 import com.sanghoon.jvm_jst.es.document.LandDynamicRegionClusterDocument
 import com.sanghoon.jvm_jst.es.document.LdrcAggData
 import com.sanghoon.jvm_jst.rds.repository.PnuAggCursorRepository
-import com.sanghoon.jvm_jst.rds.repository.PnuBoundaryRegionRepository
 import com.uber.h3core.H3Core
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
@@ -15,12 +14,11 @@ import java.util.concurrent.atomic.LongAdder
 
 /**
  * LDRC (Land Dynamic Region Cluster) 인덱싱 서비스
- * EMD -> SGG -> SD 체인 방식
+ * EMD, SGG, SD 모두 r3_pnu_agg_emd_10 테이블에서 독립적으로 인덱싱
  */
 @Service
 class LdrcIndexingService(
     private val pnuAggCursorRepo: PnuAggCursorRepository,
-    private val boundaryRegionRepo: PnuBoundaryRegionRepository,
     private val esClient: ElasticsearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -39,17 +37,20 @@ class LdrcIndexingService(
         val startTime = System.currentTimeMillis()
         val results = mutableMapOf<String, Any>()
 
-        // 1. EMD 인덱싱 (DB → ES)
-        results["emd"] = reindexEmdInternal()
+        // 인덱스 생성 (공통)
+        ensureIndexExists()
+
+        // 모두 r3_pnu_agg_emd_10 테이블에서 독립적으로 인덱싱
+        // 병렬로 실행 가능 (각각 RDB에서 독립적으로 읽음)
+        val emdJob = async { reindexEmdInternal() }
+        val sggJob = async { reindexSggInternal() }
+        val sdJob = async { reindexSdInternal() }
+
+        results["emd"] = emdJob.await()
+        results["sgg"] = sggJob.await()
+        results["sd"] = sdJob.await()
+
         esClient.indices().refresh { r -> r.index(INDEX_NAME) }
-
-        // 2. SGG 인덱싱 (ES EMD → ES SGG)
-        results["sgg"] = reindexSggInternal()
-        esClient.indices().refresh { r -> r.index(INDEX_NAME) }
-
-        // 3. SD 인덱싱 (ES SGG → ES SD)
-        results["sd"] = reindexSdInternal()
-
         esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
 
         results["totalMs"] = System.currentTimeMillis() - startTime
@@ -84,8 +85,6 @@ class LdrcIndexingService(
     private suspend fun reindexEmdInternal(): Map<String, Any> = coroutineScope {
         val startTime = System.currentTimeMillis()
         log.info("[LDRC] ========== EMD 인덱싱 시작 ==========")
-
-        ensureIndexExists()
 
         val maxId = pnuAggCursorRepo.maxIdEmd10()
         log.info("[LDRC] EMD maxId: {}", maxId)
@@ -149,190 +148,190 @@ class LdrcIndexingService(
         }
     }
 
-    // ==================== SGG 인덱싱 (ES EMD -> ES SGG) ====================
+    // ==================== SGG 인덱싱 (RDB emd_10 -> ES SGG) ====================
 
     private suspend fun reindexSggInternal(): Map<String, Any> = coroutineScope {
         val startTime = System.currentTimeMillis()
-        log.info("[LDRC] ========== SGG 인덱싱 시작 ==========")
+        log.info("[LDRC] ========== SGG 인덱싱 시작 (RDB 기반) ==========")
 
-        // 1. boundary_region에서 시군구 코드 목록 조회
-        val sggRegions = boundaryRegionRepo.findByGubun("sigungu")
-        val sggCodes = sggRegions.map { it.regionCode }
-        log.info("[LDRC] SGG 코드 {} 개 조회 완료, {} 워커로 병렬 처리", sggCodes.size, PARALLELISM)
+        val maxId = pnuAggCursorRepo.maxIdEmd10()
+        log.info("[LDRC] SGG maxId: {}", maxId)
 
-        val indexedCount = LongAdder()
+        val chunkSize = (maxId + PARALLELISM - 1) / PARALLELISM
+        log.info("[LDRC] SGG {}개 워커로 병렬 처리 시작 (워커당 ~{} 건)", PARALLELISM, chunkSize)
+
         val processedCount = LongAdder()
 
-        // 2. 코드 목록을 워커 수만큼 청크로 분할하여 병렬 처리
-        val chunks = sggCodes.chunked((sggCodes.size + PARALLELISM - 1) / PARALLELISM)
-        val jobs = chunks.mapIndexed { workerIdx, chunk ->
+        // 1. 각 워커가 자신의 aggMap 반환
+        val jobs = (0 until PARALLELISM).map { workerIdx ->
+            val workerMinId = workerIdx * chunkSize
+            val workerMaxId = minOf((workerIdx + 1) * chunkSize, maxId)
             async(Dispatchers.IO) {
-                chunk.forEach { fullSggCode ->
-                    val sggCode5 = fullSggCode.take(5)
-                    val sdCode = fullSggCode.take(2)
-                    val emdDocs = fetchBySggCode(sggCode5)
+                processSggPartition(workerIdx, workerMinId, workerMaxId, maxId, processedCount)
+            }
+        }
+        val partialMaps = jobs.awaitAll()
 
-                    if (emdDocs.isNotEmpty()) {
-                        val aggMap = mutableMapOf<Long, LdrcAggData>()
-                        for (doc in emdDocs) {
-                            val parentH3 = h3.cellToParent(doc.h3Index, 7)
-                            aggMap.compute(parentH3) { _, existing ->
-                                (existing ?: LdrcAggData(parentH3, sggCode5, sdCode, sggCode5)).also {
-                                    it.add(doc.count, doc.sumLat, doc.sumLng)
-                                }
-                            }
-                        }
-
-                        val sggDocs = aggMap.values.map { it.toDocument("SGG") }
-                        bulkIndex(sggDocs)
-                        indexedCount.add(sggDocs.size.toLong())
+        // 2. 모든 워커 결과 merge
+        log.info("[LDRC] SGG 워커 결과 merge 시작")
+        val mergedMap = mutableMapOf<String, LdrcAggData>()
+        for (partialMap in partialMaps) {
+            for ((key, data) in partialMap) {
+                mergedMap.compute(key) { _, existing ->
+                    if (existing == null) {
+                        data
+                    } else {
+                        existing.also { it.add(data.count.toInt(), data.sumLat, data.sumLng) }
                     }
-
-                    processedCount.increment()
-                    log.info("[LDRC] SGG Worker-{} {}/{} - {} (EMD {} 건)", workerIdx, processedCount.sum(), sggCodes.size, sggCode5, emdDocs.size)
                 }
             }
         }
-        jobs.awaitAll()
+        log.info("[LDRC] SGG merge 완료: {} 건", mergedMap.size)
+
+        // 3. merge된 결과 ES에 인덱싱
+        val docs = mergedMap.values.map { it.toDocument("SGG") }
+        docs.chunked(ES_BATCH_SIZE).forEach { chunk ->
+            bulkIndex(chunk)
+        }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LDRC] SGG 완료: {} 건, {}ms", indexedCount.sum(), elapsed)
-        mapOf("level" to "SGG", "indexed" to indexedCount.sum(), "elapsedMs" to elapsed)
+        log.info("[LDRC] SGG 완료: {} 건, {}ms", docs.size, elapsed)
+        mapOf("level" to "SGG", "indexed" to docs.size, "elapsedMs" to elapsed)
     }
 
-    // ==================== SD 인덱싱 (ES SGG -> ES SD) ====================
+    private fun processSggPartition(
+        workerIdx: Int,
+        minId: Long,
+        maxId: Long,
+        totalMaxId: Long,
+        processedCount: LongAdder
+    ): Map<String, LdrcAggData> {
+        val aggMap = mutableMapOf<String, LdrcAggData>()
+
+        var lastId = minId
+        while (true) {
+            val rows = pnuAggCursorRepo.findEmd10ByIdRange(lastId, maxId, BATCH_SIZE)
+            if (rows.isEmpty()) break
+
+            for (row in rows) {
+                val codeStr = row.code.toString()
+                val sggCode = codeStr.take(5)
+                val sdCode = codeStr.take(2)
+                val parentH3 = h3.cellToParent(row.h3Index, 7)
+                val aggKey = "${sggCode}_${parentH3}"
+
+                aggMap.compute(aggKey) { _, existing ->
+                    (existing ?: LdrcAggData(parentH3, sggCode, sdCode, sggCode)).also {
+                        it.add(row.cnt, row.sumLat, row.sumLng)
+                    }
+                }
+            }
+
+            lastId = rows.last().id
+            processedCount.add(rows.size.toLong())
+
+            val done = processedCount.sum()
+            if (done % 100000 == 0L) {
+                log.info("[LDRC] SGG Worker-{} id={} - {}/{}", workerIdx, lastId, done, totalMaxId)
+            }
+        }
+
+        log.info("[LDRC] SGG Worker-{} 집계 완료: {} 건", workerIdx, aggMap.size)
+        return aggMap
+    }
+
+    // ==================== SD 인덱싱 (RDB emd_10 -> ES SD) ====================
 
     private suspend fun reindexSdInternal(): Map<String, Any> = coroutineScope {
         val startTime = System.currentTimeMillis()
-        log.info("[LDRC] ========== SD 인덱싱 시작 ==========")
+        log.info("[LDRC] ========== SD 인덱싱 시작 (RDB 기반) ==========")
 
-        // 1. boundary_region에서 시도 코드 목록 조회
-        val sdRegions = boundaryRegionRepo.findByGubun("sido")
-        val sdCodes = sdRegions.map { it.regionCode }
-        log.info("[LDRC] SD 코드 {} 개 조회 완료, {} 워커로 병렬 처리", sdCodes.size, PARALLELISM)
+        val maxId = pnuAggCursorRepo.maxIdEmd10()
+        log.info("[LDRC] SD maxId: {}", maxId)
 
-        val indexedCount = LongAdder()
+        val chunkSize = (maxId + PARALLELISM - 1) / PARALLELISM
+        log.info("[LDRC] SD {}개 워커로 병렬 처리 시작 (워커당 ~{} 건)", PARALLELISM, chunkSize)
+
         val processedCount = LongAdder()
 
-        // 2. 코드 목록을 워커 수만큼 청크로 분할하여 병렬 처리
-        val chunks = sdCodes.chunked((sdCodes.size + PARALLELISM - 1) / PARALLELISM)
-        val jobs = chunks.mapIndexed { workerIdx, chunk ->
+        // 1. 각 워커가 자신의 aggMap 반환
+        val jobs = (0 until PARALLELISM).map { workerIdx ->
+            val workerMinId = workerIdx * chunkSize
+            val workerMaxId = minOf((workerIdx + 1) * chunkSize, maxId)
             async(Dispatchers.IO) {
-                chunk.forEach { fullSdCode ->
-                    val sdCode2 = fullSdCode.take(2)
-                    val sggDocs = fetchBySdCode("SGG", sdCode2)
+                processSdPartition(workerIdx, workerMinId, workerMaxId, maxId, processedCount)
+            }
+        }
+        val partialMaps = jobs.awaitAll()
 
-                    if (sggDocs.isNotEmpty()) {
-                        val aggMap = mutableMapOf<Long, LdrcAggData>()
-                        for (doc in sggDocs) {
-                            val parentH3 = h3.cellToParent(doc.h3Index, 5)
-                            aggMap.compute(parentH3) { _, existing ->
-                                (existing ?: LdrcAggData(parentH3, sdCode2, sdCode2, "")).also {
-                                    it.add(doc.count, doc.sumLat, doc.sumLng)
-                                }
-                            }
-                        }
-
-                        val sdDocs = aggMap.values.map { it.toDocument("SD") }
-                        bulkIndex(sdDocs)
-                        indexedCount.add(sdDocs.size.toLong())
+        // 2. 모든 워커 결과 merge
+        log.info("[LDRC] SD 워커 결과 merge 시작")
+        val mergedMap = mutableMapOf<String, LdrcAggData>()
+        for (partialMap in partialMaps) {
+            for ((key, data) in partialMap) {
+                mergedMap.compute(key) { _, existing ->
+                    if (existing == null) {
+                        data
+                    } else {
+                        existing.also { it.add(data.count.toInt(), data.sumLat, data.sumLng) }
                     }
-
-                    processedCount.increment()
-                    log.info("[LDRC] SD Worker-{} {}/{} - {} (SGG {} 건)", workerIdx, processedCount.sum(), sdCodes.size, sdCode2, sggDocs.size)
                 }
             }
         }
-        jobs.awaitAll()
+        log.info("[LDRC] SD merge 완료: {} 건", mergedMap.size)
+
+        // 3. merge된 결과 ES에 인덱싱
+        val docs = mergedMap.values.map { it.toDocument("SD") }
+        docs.chunked(ES_BATCH_SIZE).forEach { chunk ->
+            bulkIndex(chunk)
+        }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LDRC] SD 완료: {} 건, {}ms", indexedCount.sum(), elapsed)
-        mapOf("level" to "SD", "indexed" to indexedCount.sum(), "elapsedMs" to elapsed)
+        log.info("[LDRC] SD 완료: {} 건, {}ms", docs.size, elapsed)
+        mapOf("level" to "SD", "indexed" to docs.size, "elapsedMs" to elapsed)
+    }
+
+    private fun processSdPartition(
+        workerIdx: Int,
+        minId: Long,
+        maxId: Long,
+        totalMaxId: Long,
+        processedCount: LongAdder
+    ): Map<String, LdrcAggData> {
+        val aggMap = mutableMapOf<String, LdrcAggData>()
+
+        var lastId = minId
+        while (true) {
+            val rows = pnuAggCursorRepo.findEmd10ByIdRange(lastId, maxId, BATCH_SIZE)
+            if (rows.isEmpty()) break
+
+            for (row in rows) {
+                val codeStr = row.code.toString()
+                val sdCode = codeStr.take(2)
+                val parentH3 = h3.cellToParent(row.h3Index, 5)
+                val aggKey = "${sdCode}_${parentH3}"
+
+                aggMap.compute(aggKey) { _, existing ->
+                    (existing ?: LdrcAggData(parentH3, sdCode, sdCode, "")).also {
+                        it.add(row.cnt, row.sumLat, row.sumLng)
+                    }
+                }
+            }
+
+            lastId = rows.last().id
+            processedCount.add(rows.size.toLong())
+
+            val done = processedCount.sum()
+            if (done % 100000 == 0L) {
+                log.info("[LDRC] SD Worker-{} id={} - {}/{}", workerIdx, lastId, done, totalMaxId)
+            }
+        }
+
+        log.info("[LDRC] SD Worker-{} 집계 완료: {} 건", workerIdx, aggMap.size)
+        return aggMap
     }
 
     // ==================== 공통 ====================
-
-    /**
-     * sggCode로 EMD 조회 (term 쿼리)
-     */
-    private fun fetchBySggCode(sggCode: String): List<LandDynamicRegionClusterDocument> {
-        val results = mutableListOf<LandDynamicRegionClusterDocument>()
-
-        var scrollId: String? = null
-        val scrollResponse = esClient.search({ s ->
-            s.index(INDEX_NAME)
-                .size(ES_BATCH_SIZE)
-                .scroll { sc -> sc.time("1m") }
-                .query { q ->
-                    q.bool { b ->
-                        b.must { m -> m.term { t -> t.field("level").value("EMD") } }
-                            .must { m -> m.term { t -> t.field("sggCode").value(sggCode) } }
-                    }
-                }
-        }, LandDynamicRegionClusterDocument::class.java)
-
-        scrollId = scrollResponse.scrollId()
-        scrollResponse.hits().hits().mapNotNullTo(results) { it.source() }
-
-        while (true) {
-            val resp = esClient.scroll({ s ->
-                s.scrollId(scrollId).scroll { sc -> sc.time("1m") }
-            }, LandDynamicRegionClusterDocument::class.java)
-
-            val hits = resp.hits().hits()
-            if (hits.isEmpty()) break
-
-            hits.mapNotNullTo(results) { it.source() }
-            scrollId = resp.scrollId()
-        }
-
-        if (scrollId != null) {
-            try { esClient.clearScroll { c -> c.scrollId(scrollId) } } catch (_: Exception) {}
-        }
-
-        return results
-    }
-
-    /**
-     * sdCode로 조회 (term 쿼리)
-     */
-    private fun fetchBySdCode(level: String, sdCode: String): List<LandDynamicRegionClusterDocument> {
-        val results = mutableListOf<LandDynamicRegionClusterDocument>()
-
-        var scrollId: String? = null
-        val scrollResponse = esClient.search({ s ->
-            s.index(INDEX_NAME)
-                .size(ES_BATCH_SIZE)
-                .scroll { sc -> sc.time("1m") }
-                .query { q ->
-                    q.bool { b ->
-                        b.must { m -> m.term { t -> t.field("level").value(level) } }
-                            .must { m -> m.term { t -> t.field("sdCode").value(sdCode) } }
-                    }
-                }
-        }, LandDynamicRegionClusterDocument::class.java)
-
-        scrollId = scrollResponse.scrollId()
-        scrollResponse.hits().hits().mapNotNullTo(results) { it.source() }
-
-        while (true) {
-            val resp = esClient.scroll({ s ->
-                s.scrollId(scrollId).scroll { sc -> sc.time("1m") }
-            }, LandDynamicRegionClusterDocument::class.java)
-
-            val hits = resp.hits().hits()
-            if (hits.isEmpty()) break
-
-            hits.mapNotNullTo(results) { it.source() }
-            scrollId = resp.scrollId()
-        }
-
-        if (scrollId != null) {
-            try { esClient.clearScroll { c -> c.scrollId(scrollId) } } catch (_: Exception) {}
-        }
-
-        return results
-    }
 
     private fun ensureIndexExists() {
         val exists = try { esClient.indices().exists { it.index(INDEX_NAME) }.value() } catch (_: Exception) { false }

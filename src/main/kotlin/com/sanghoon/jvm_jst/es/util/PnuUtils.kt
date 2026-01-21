@@ -25,11 +25,11 @@ object PnuUtils {
     }
 
     /**
-     * PNU에서 읍면동 코드 추출 (앞 10자리)
+     * PNU에서 읍면동 코드 추출 (앞 8자리)
      */
     fun extractEmd(pnu: String): String {
-        require(pnu.length >= 10) { "PNU must be at least 10 characters" }
-        return pnu.substring(0, 10)
+        require(pnu.length >= 8) { "PNU must be at least 8 characters" }
+        return pnu.substring(0, 8)
     }
 
     /**

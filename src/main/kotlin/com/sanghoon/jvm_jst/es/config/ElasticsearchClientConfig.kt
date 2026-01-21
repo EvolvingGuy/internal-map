@@ -1,5 +1,8 @@
 package com.sanghoon.jvm_jst.es.config
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import co.elastic.clients.json.JsonpMapper
+import co.elastic.clients.json.jackson.JacksonJsonpMapper
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.elasticsearch.client.ClientConfiguration
@@ -10,7 +13,9 @@ import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfigurat
  * Rest5Client 기반 설정
  */
 @Configuration
-class ElasticsearchClientConfig : ElasticsearchConfiguration() {
+class ElasticsearchClientConfig(
+    private val objectMapper: ObjectMapper
+) : ElasticsearchConfiguration() {
 
     @Value("\${elasticsearch.host:localhost}")
     private lateinit var host: String
@@ -22,5 +27,9 @@ class ElasticsearchClientConfig : ElasticsearchConfiguration() {
         return ClientConfiguration.builder()
             .connectedTo("$host:$port")
             .build()
+    }
+
+    override fun jsonpMapper(): JsonpMapper {
+        return JacksonJsonpMapper(objectMapper)
     }
 }

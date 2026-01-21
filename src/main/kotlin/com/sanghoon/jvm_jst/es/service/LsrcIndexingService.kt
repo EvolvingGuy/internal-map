@@ -48,7 +48,7 @@ class LsrcIndexingService(
 
         // 3. PNU 범위 N등분
         val boundaries = landCharRepo.findPnuBoundaries(PARALLELISM)
-        log.info("[LSRC] PNU 경계: {} 개", boundaries.size)
+        log.info("[LSRC] {} 개 워커로 병렬 처리 시작", boundaries.size - 1)
 
         // 4. 행정구역별 집계 맵 (스레드 세이프)
         val sdAgg = ConcurrentHashMap<String, LsrcAggData>()   // 시도 (2자리)

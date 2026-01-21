@@ -27,25 +27,30 @@ class RealEstateTradeRepository(
 ) {
     /**
      * PNU 목록으로 최신 실거래 조회 (pnu별 max(id) 한 건)
+     * LATERAL JOIN으로 각 pnu마다 인덱스 스캔
      */
     fun findLatestByPnuIn(pnuList: Collection<String>): List<RealEstateTradeProjection> {
         if (pnuList.isEmpty()) return emptyList()
 
-        val placeholders = pnuList.joinToString(",") { "?" }
         val sql = """
-            SELECT DISTINCT ON (pnu)
-                pnu,
-                property,
-                contract_date,
-                effective_amount,
-                building_amount_per_nla_m2 as building_amount_per_m2,
-                land_amount_per_m2
-            FROM manage.r3_real_estate_trade
-            WHERE pnu IN ($placeholders)
-            ORDER BY pnu, id DESC
+            SELECT t.*
+            FROM unnest(?::text[]) AS p(pnu)
+            CROSS JOIN LATERAL (
+                SELECT pnu,
+                       property,
+                       contract_date,
+                       effective_amount,
+                       building_amount_per_nla_m2 as building_amount_per_m2,
+                       land_amount_per_m2
+                FROM external_data.r3_real_estate_trade
+                WHERE pnu = p.pnu
+                ORDER BY id DESC
+                LIMIT 1
+            ) t
         """.trimIndent()
 
-        return jdbcTemplate.query(sql, pnuList.toTypedArray()) { rs, _ ->
+        val pnuArray = pnuList.toTypedArray()
+        return jdbcTemplate.query(sql, arrayOf(pnuArray)) { rs, _ ->
             RealEstateTradeProjection(
                 pnu = rs.getString("pnu"),
                 property = rs.getString("property"),

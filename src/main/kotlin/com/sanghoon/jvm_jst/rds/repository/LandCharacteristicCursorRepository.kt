@@ -74,32 +74,25 @@ class LandCharacteristicCursorRepository(
     }
 
     /**
-     * PNU 범위 경계 조회 (N등분용)
-     * @param partitions 분할 수
-     * @return PNU 경계 목록 (partitions + 1 개)
+     * 시도 코드 기반 PNU 경계 조회
+     * 실제 데이터가 있는 시도별로 파티션
      */
     fun findPnuBoundaries(partitions: Int): List<String> {
-        val sql = """
-            WITH numbered AS (
-                SELECT pnu, ROW_NUMBER() OVER (ORDER BY pnu) as rn, COUNT(*) OVER() as total
-                FROM external_data.land_characteristic
-                WHERE center IS NOT NULL
-            )
-            SELECT pnu FROM numbered
-            WHERE rn = 1
-               OR rn = total
-               OR rn % (total / ?) = 0
-            ORDER BY pnu
-        """.trimIndent()
+        // 실제 존재하는 시도 코드 조회
+        val sdCodes = jdbcTemplate.queryForList("""
+            SELECT DISTINCT LEFT(pnu, 2) as sd
+            FROM external_data.land_characteristic
+            WHERE center IS NOT NULL
+            ORDER BY sd
+        """.trimIndent(), String::class.java)
 
-        val boundaries = jdbcTemplate.queryForList(sql, String::class.java, partitions)
+        if (sdCodes.isEmpty()) return listOf("0".repeat(19), "9".repeat(19))
 
-        // 마지막 경계를 최대값으로 설정 (exclusive용)
-        return if (boundaries.isNotEmpty()) {
-            boundaries.dropLast(1) + listOf("9999999999999999999")
-        } else {
-            listOf("0000000000000000000", "9999999999999999999")
-        }
+        // 각 시도의 시작점을 경계로 사용
+        val boundaries = sdCodes.map { sd -> sd.padEnd(19, '0') }.toMutableList()
+        boundaries.add("9".repeat(19))
+
+        return boundaries
     }
 
     /**
