@@ -1,0 +1,12 @@
+metricbeat.modules:
+  - module: elasticsearch
+    metricsets: ["node_stats", "cluster_stats"]
+    hosts: ["http://elasticsearch:9200"]
+    period: 10s
+    xpack.enabled: true  # <--- 이 줄을 추가해. 그래야 Kibana 모니터링 탭에 바로 꽂힘.
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+
+setup.kibana:
+  host: "kibana:5601"

@@ -1,1 +1,1 @@
-rootProject.name = "jvm_jst"
+rootProject.name = "geo_poc"

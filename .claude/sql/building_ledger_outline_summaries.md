@@ -1,0 +1,80 @@
+```sql
+-- external_data.building_ledger_outline_summaries definition
+
+-- Drop table
+
+-- DROP TABLE external_data.building_ledger_outline_summaries;
+
+CREATE TABLE external_data.building_ledger_outline_summaries
+(
+    mgm_bldrgst_pk       text                                                                                       NULL,
+    regstr_gb_cd         text                                                                                       NULL,
+    regstr_gb_cd_nm      text                                                                                       NULL,
+    regstr_kind_cd       text                                                                                       NULL,
+    regstr_kind_cd_nm    text                                                                                       NULL,
+    new_regstr_gb_cd     text                                                                                       NULL,
+    new_regstr_gb_cd_nm  text                                                                                       NULL,
+    plat_plc             text                                                                                       NULL,
+    new_plat_plc         text                                                                                       NULL,
+    bld_nm               text                                                                                       NULL,
+    sigungu_cd           text                                                                                       NULL,
+    bjdong_cd            text                                                                                       NULL,
+    plat_gb_cd           text                                                                                       NULL,
+    bun                  text                                                                                       NULL,
+    ji                   text                                                                                       NULL,
+    splot_nm             text                                                                                       NULL,
+    block                text                                                                                       NULL,
+    lot                  text                                                                                       NULL,
+    bylot_cnt            text                                                                                       NULL,
+    na_road_cd           text                                                                                       NULL,
+    na_bjdong_cd         text                                                                                       NULL,
+    na_ugrnd_cd          text                                                                                       NULL,
+    na_main_bun          text                                                                                       NULL,
+    na_sub_bun           text                                                                                       NULL,
+    plat_area            text                                                                                       NULL,
+    arch_area            text                                                                                       NULL,
+    bc_rat               text                                                                                       NULL,
+    tot_area             text                                                                                       NULL,
+    vl_rat_estm_tot_area text                                                                                       NULL,
+    vl_rat               text                                                                                       NULL,
+    main_purps_cd        text                                                                                       NULL,
+    main_purps_cd_nm     text                                                                                       NULL,
+    etc_purps            text                                                                                       NULL,
+    hhld_cnt             text                                                                                       NULL,
+    fmly_cnt             text                                                                                       NULL,
+    main_bld_cnt         text                                                                                       NULL,
+    atch_bld_cnt         text                                                                                       NULL,
+    atch_bld_area        text                                                                                       NULL,
+    tot_pkng_cnt         text                                                                                       NULL,
+    indr_mech_ut_cnt     text                                                                                       NULL,
+    indr_mech_area       text                                                                                       NULL,
+    oudr_mech_ut_cnt     text                                                                                       NULL,
+    oudr_mech_area       text                                                                                       NULL,
+    indr_auto_ut_cnt     text                                                                                       NULL,
+    indr_auto_area       text                                                                                       NULL,
+    oudr_auto_ut_cnt     text                                                                                       NULL,
+    oudr_auto_area       text                                                                                       NULL,
+    pms_day              text                                                                                       NULL,
+    stcns_day            text                                                                                       NULL,
+    use_apr_day          text                                                                                       NULL,
+    pmsno_year           text                                                                                       NULL,
+    pmsno_kik_cd         text                                                                                       NULL,
+    pmsno_kik_cd_nm      text                                                                                       NULL,
+    pmsno_gb_cd          text                                                                                       NULL,
+    pmsno_gb_cd_nm       text                                                                                       NULL,
+    ho_cnt               text                                                                                       NULL,
+    engr_grade           text                                                                                       NULL,
+    engr_rat             text                                                                                       NULL,
+    engr_epi             text                                                                                       NULL,
+    gn_bld_grade         text                                                                                       NULL,
+    gn_bld_cert          text                                                                                       NULL,
+    itg_bld_grade        text                                                                                       NULL,
+    itg_bld_cert         text                                                                                       NULL,
+    crtn_day             text                                                                                       NULL,
+    create_dt            timestamptz                                                                                NULL,
+    pnu                  text GENERATED ALWAYS AS ((((sigungu_cd || bjdong_cd) || plat_gb_cd) || bun) || ji) STORED NULL
+);
+CREATE INDEX building_ledger_outline_summaries_custom_pnu_index ON external_data.building_ledger_outline_summaries USING btree (sigungu_cd, bjdong_cd, plat_gb_cd, bun, ji);
+CREATE INDEX building_ledger_outline_summaries_mgm_bldrgst_pk_index ON external_data.building_ledger_outline_summaries USING btree (mgm_bldrgst_pk);
+CREATE INDEX idx_blos_pnu ON external_data.building_ledger_outline_summaries USING btree (pnu);
+```
