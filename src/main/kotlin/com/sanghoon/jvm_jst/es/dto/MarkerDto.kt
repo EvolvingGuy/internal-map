@@ -40,7 +40,7 @@ data class MarkerItem(
     val land: MarkerLand?,
     val building: MarkerBuilding?,
     val lastRealEstateTrade: MarkerTrade?,
-    val registration: RegistrationAgg
+    val registration: RegistrationAgg?
 )
 
 data class MarkerCenter(
@@ -52,7 +52,8 @@ data class MarkerLand(
     val jiyukCd1: String?,
     val jimokCd: String?,
     val area: Double?,
-    val price: Long?
+    val price: Long?,
+    val geometry: String?  // GeoJSON 문자열 (렌더링용)
 )
 
 data class MarkerBuilding(

@@ -3,7 +3,7 @@ package com.sanghoon.jvm_jst.es.service
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch._types.FieldValue
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery
-import com.sanghoon.jvm_jst.es.document.LandCompactDocument
+import com.sanghoon.jvm_jst.es.document.LandCompactGeoDocument
 import com.sanghoon.jvm_jst.es.dto.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -11,31 +11,27 @@ import java.math.BigDecimal
 import java.time.LocalDate
 
 /**
- * Land Compact ES 조회 서비스
- * Marker API용 필지 단위 조회
+ * Land Compact Geo 조회 서비스
+ * geometry를 object로 저장한 인덱스 조회
  */
 @Service
-class LandCompactQueryService(
+class LandCompactGeoQueryService(
     private val esClient: ElasticsearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        const val INDEX_NAME = LandCompactDocument.INDEX_NAME
+        const val INDEX_NAME = LandCompactGeoDocument.INDEX_NAME
         const val MAX_SIZE = 10000
     }
 
-    /**
-     * bbox + 필터로 land_compact 조회
-     * @return pnu -> LandCompactData 맵
-     */
     fun findByBbox(
         swLng: Double,
         swLat: Double,
         neLng: Double,
         neLat: Double,
         filter: LcAggFilter = LcAggFilter()
-    ): Map<String, LandCompactData> {
+    ): Map<String, LandCompactGeoData> {
         val startTime = System.currentTimeMillis()
 
         val response = esClient.search({ s ->
@@ -43,7 +39,6 @@ class LandCompactQueryService(
                 .size(MAX_SIZE)
                 .query { q ->
                     q.bool { bool ->
-                        // bbox 조건
                         bool.must { must ->
                             must.geoBoundingBox { geo ->
                                 geo.field("land.center")
@@ -62,27 +57,20 @@ class LandCompactQueryService(
         }, Map::class.java)
 
         val result = response.hits().hits().mapNotNull { hit ->
-            parseLandCompactData(hit.source())
+            parseLandCompactGeoData(hit.source())
         }.associateBy { it.pnu }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LcQuery] bbox results={}, hasFilter={}, elapsed={}ms",
-            result.size, filter.hasAnyFilter(), elapsed)
+        log.info("[LcGeoQuery] bbox results={}, elapsed={}ms", result.size, elapsed)
 
         return result
     }
 
-    /**
-     * pnu 목록으로 land_compact 조회
-     * @return pnu -> LandCompactData 맵
-     */
     fun findByPnuIds(
         pnuIds: Collection<String>,
         filter: LcAggFilter = LcAggFilter()
-    ): Map<String, LandCompactData> {
+    ): Map<String, LandCompactGeoData> {
         if (pnuIds.isEmpty()) return emptyMap()
-
-        val startTime = System.currentTimeMillis()
 
         val response = esClient.search({ s ->
             s.index(INDEX_NAME)
@@ -101,18 +89,13 @@ class LandCompactQueryService(
                 }
         }, Map::class.java)
 
-        val result = response.hits().hits().mapNotNull { hit ->
-            parseLandCompactData(hit.source())
+        return response.hits().hits().mapNotNull { hit ->
+            parseLandCompactGeoData(hit.source())
         }.associateBy { it.pnu }
-
-        val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LcQuery] pnuIds={}, results={}, hasFilter={}, elapsed={}ms", pnuIds.size, result.size, filter.hasAnyFilter(), elapsed)
-
-        return result
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun parseLandCompactData(source: Map<*, *>?): LandCompactData? {
+    private fun parseLandCompactGeoData(source: Map<*, *>?): LandCompactGeoData? {
         if (source == null) return null
 
         val pnu = source["pnu"]?.toString() ?: return null
@@ -124,16 +107,19 @@ class LandCompactQueryService(
         val centerLat = (center?.get("lat") as? Number)?.toDouble() ?: return null
         val centerLon = (center?.get("lon") as? Number)?.toDouble() ?: return null
 
-        return LandCompactData(
+        // geometry는 이미 object로 저장되어 있음
+        val geometry = land?.get("geometry") as? Map<String, Any>
+
+        return LandCompactGeoData(
             pnu = pnu,
             center = MarkerCenter(centerLat, centerLon),
             land = land?.let {
-                MarkerLand(
+                MarkerLandGeo(
                     jiyukCd1 = it["jiyukCd1"]?.toString(),
                     jimokCd = it["jimokCd"]?.toString(),
                     area = (it["area"] as? Number)?.toDouble(),
                     price = (it["price"] as? Number)?.toLong(),
-                    geometry = it["geometry"]?.toString()
+                    geometry = geometry
                 )
             },
             building = building?.let {
@@ -171,7 +157,6 @@ class LandCompactQueryService(
     }
 
     private fun applyFilters(bool: BoolQuery.Builder, filter: LcAggFilter) {
-        // Building filters
         if (!filter.buildingMainPurpsCdNm.isNullOrEmpty()) {
             bool.filter { f -> f.terms { t -> t.field("building.mainPurpsCdNm").terms { tv -> tv.value(filter.buildingMainPurpsCdNm.map { FieldValue.of(it) }) } } }
         }
@@ -210,8 +195,6 @@ class LandCompactQueryService(
         if (filter.buildingArchAreaMax != null) {
             bool.filter { f -> f.range { r -> r.number { n -> n.field("building.archArea").lte(filter.buildingArchAreaMax.toDouble()) } } }
         }
-
-        // Land filters
         if (!filter.landJiyukCd1.isNullOrEmpty()) {
             bool.filter { f -> f.terms { t -> t.field("land.jiyukCd1").terms { tv -> tv.value(filter.landJiyukCd1.map { FieldValue.of(it) }) } } }
         }
@@ -230,8 +213,6 @@ class LandCompactQueryService(
         if (filter.landPriceMax != null) {
             bool.filter { f -> f.range { r -> r.number { n -> n.field("land.price").lte(filter.landPriceMax.toDouble()) } } }
         }
-
-        // Trade filters
         if (!filter.tradeProperty.isNullOrEmpty()) {
             bool.filter { f -> f.terms { t -> t.field("lastRealEstateTrade.property").terms { tv -> tv.value(filter.tradeProperty.map { FieldValue.of(it) }) } } }
         }
@@ -263,12 +244,23 @@ class LandCompactQueryService(
 }
 
 /**
- * Land Compact 조회 결과 데이터
+ * Land Compact Geo 조회 결과
  */
-data class LandCompactData(
+data class LandCompactGeoData(
     val pnu: String,
     val center: MarkerCenter,
-    val land: MarkerLand?,
+    val land: MarkerLandGeo?,
     val building: MarkerBuilding?,
     val trade: MarkerTrade?
+)
+
+/**
+ * geometry를 object로 가진 MarkerLand
+ */
+data class MarkerLandGeo(
+    val jiyukCd1: String?,
+    val jimokCd: String?,
+    val area: Double?,
+    val price: Long?,
+    val geometry: Map<String, Any>?
 )

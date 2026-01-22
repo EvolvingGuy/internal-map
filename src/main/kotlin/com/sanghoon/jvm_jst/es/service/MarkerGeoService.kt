@@ -5,28 +5,24 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 /**
- * Marker API 서비스
- * land_compact + registration 조합
+ * Marker Geo API 서비스
+ * land_compact_geo (geometry를 object로 저장) + registration 조합
  */
 @Service
-class MarkerService(
-    private val lcQueryService: LandCompactQueryService,
+class MarkerGeoService(
+    private val lcGeoQueryService: LandCompactGeoQueryService,
     private val regAggService: RegistrationAggService
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     /**
      * Type 1: Land 우선 조회
-     * 1. bbox 내 land_compact 조회 (필터 적용)
-     * 2. 조회된 pnu로 registration aggregation
-     * 3. 등기 필터 있으면 교집합, 없으면 토지 전체 (등기 정보는 있으면 붙임)
      */
-    fun getMarkersType1(request: MarkerRequest): MarkerResponse {
+    fun getMarkersType1(request: MarkerRequest): MarkerGeoResponse {
         val startTime = System.currentTimeMillis()
         val hasRegFilter = request.minCreatedDate != null || request.maxCreatedDate != null
 
-        // 1. land_compact 조회
-        val lcDataMap = lcQueryService.findByBbox(
+        val lcDataMap = lcGeoQueryService.findByBbox(
             swLng = request.swLng,
             swLat = request.swLat,
             neLng = request.neLng,
@@ -35,14 +31,13 @@ class MarkerService(
         )
 
         if (lcDataMap.isEmpty()) {
-            return MarkerResponse(
+            return MarkerGeoResponse(
                 totalCount = 0,
                 elapsedMs = System.currentTimeMillis() - startTime,
                 items = emptyList()
             )
         }
 
-        // 2. registration aggregation
         val regAggMap = regAggService.aggregateByPnuIds(
             pnuIds = lcDataMap.keys.toList(),
             userId = request.userId,
@@ -50,13 +45,11 @@ class MarkerService(
             maxCreatedDate = request.maxCreatedDate
         )
 
-        // 3. 등기 필터 있으면 교집합, 없으면 토지 전체
         val items = if (hasRegFilter) {
-            // 등기 필터 있음: 교집합
             lcDataMap.entries
                 .filter { regAggMap.containsKey(it.key) }
                 .map { (pnu, lcData) ->
-                    MarkerItem(
+                    MarkerGeoItem(
                         pnu = pnu,
                         center = lcData.center,
                         land = lcData.land,
@@ -66,9 +59,8 @@ class MarkerService(
                     )
                 }
         } else {
-            // 등기 필터 없음: 토지 전체, 등기 정보는 있으면 붙임
             lcDataMap.entries.map { (pnu, lcData) ->
-                MarkerItem(
+                MarkerGeoItem(
                     pnu = pnu,
                     center = lcData.center,
                     land = lcData.land,
@@ -80,10 +72,10 @@ class MarkerService(
         }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[Marker Type1] lc={}, reg={}, result={}, hasRegFilter={}, elapsed={}ms",
-            lcDataMap.size, regAggMap.size, items.size, hasRegFilter, elapsed)
+        log.info("[MarkerGeo Type1] lc={}, reg={}, result={}, elapsed={}ms",
+            lcDataMap.size, regAggMap.size, items.size, elapsed)
 
-        return MarkerResponse(
+        return MarkerGeoResponse(
             totalCount = items.size,
             elapsedMs = elapsed,
             items = items
@@ -92,20 +84,15 @@ class MarkerService(
 
     /**
      * Type 2: Registration 우선 조회
-     * - 등기 필터 있음: bbox 내 registration 조회 -> pnu_id로 land_compact 조회 -> 교집합
-     * - 등기 필터 없음: Type 1과 동일 (토지 전체, 등기는 있으면 붙임)
      */
-    fun getMarkersType2(request: MarkerRequest): MarkerResponse {
+    fun getMarkersType2(request: MarkerRequest): MarkerGeoResponse {
         val startTime = System.currentTimeMillis()
         val hasRegFilter = request.minCreatedDate != null || request.maxCreatedDate != null
 
-        // 등기 필터가 없으면 Type 1과 동일하게 처리
         if (!hasRegFilter) {
             return getMarkersType2NoRegFilter(request, startTime)
         }
 
-        // 등기 필터 있음: registration 우선 조회
-        // 1. registration에서 pnu_id set 조회
         val regPnuIds = regAggService.findPnuIdsByBbox(
             swLng = request.swLng,
             swLat = request.swLat,
@@ -116,21 +103,18 @@ class MarkerService(
         )
 
         if (regPnuIds.isEmpty()) {
-            return MarkerResponse(
+            return MarkerGeoResponse(
                 totalCount = 0,
                 elapsedMs = System.currentTimeMillis() - startTime,
                 items = emptyList()
             )
         }
 
-        // 2. land_compact 조회 (pnu 목록으로, 필터 적용)
-        val lcDataMap = lcQueryService.findByPnuIds(regPnuIds, request.lcFilter)
-
-        // 3. registration aggregation (land_compact에 있는 pnu만)
+        val lcDataMap = lcGeoQueryService.findByPnuIds(regPnuIds, request.lcFilter)
         val commonPnuIds = regPnuIds.intersect(lcDataMap.keys)
 
         if (commonPnuIds.isEmpty()) {
-            return MarkerResponse(
+            return MarkerGeoResponse(
                 totalCount = 0,
                 elapsedMs = System.currentTimeMillis() - startTime,
                 items = emptyList()
@@ -144,11 +128,10 @@ class MarkerService(
             maxCreatedDate = request.maxCreatedDate
         )
 
-        // 4. 교집합 머지
         val items = commonPnuIds.mapNotNull { pnu ->
             val lcData = lcDataMap[pnu] ?: return@mapNotNull null
             val regAgg = regAggMap[pnu] ?: return@mapNotNull null
-            MarkerItem(
+            MarkerGeoItem(
                 pnu = pnu,
                 center = lcData.center,
                 land = lcData.land,
@@ -159,22 +142,18 @@ class MarkerService(
         }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[Marker Type2] regPnu={}, lc={}, result={}, hasRegFilter=true, elapsed={}ms",
+        log.info("[MarkerGeo Type2] regPnu={}, lc={}, result={}, elapsed={}ms",
             regPnuIds.size, lcDataMap.size, items.size, elapsed)
 
-        return MarkerResponse(
+        return MarkerGeoResponse(
             totalCount = items.size,
             elapsedMs = elapsed,
             items = items
         )
     }
 
-    /**
-     * Type 2 - 등기 필터 없는 경우: 토지 전체 조회, 등기 정보는 있으면 붙임
-     */
-    private fun getMarkersType2NoRegFilter(request: MarkerRequest, startTime: Long): MarkerResponse {
-        // 1. land_compact 조회
-        val lcDataMap = lcQueryService.findByBbox(
+    private fun getMarkersType2NoRegFilter(request: MarkerRequest, startTime: Long): MarkerGeoResponse {
+        val lcDataMap = lcGeoQueryService.findByBbox(
             swLng = request.swLng,
             swLat = request.swLat,
             neLng = request.neLng,
@@ -183,14 +162,13 @@ class MarkerService(
         )
 
         if (lcDataMap.isEmpty()) {
-            return MarkerResponse(
+            return MarkerGeoResponse(
                 totalCount = 0,
                 elapsedMs = System.currentTimeMillis() - startTime,
                 items = emptyList()
             )
         }
 
-        // 2. registration aggregation
         val regAggMap = regAggService.aggregateByPnuIds(
             pnuIds = lcDataMap.keys.toList(),
             userId = request.userId,
@@ -198,9 +176,8 @@ class MarkerService(
             maxCreatedDate = null
         )
 
-        // 3. 토지 전체, 등기 정보는 있으면 붙임
         val items = lcDataMap.entries.map { (pnu, lcData) ->
-            MarkerItem(
+            MarkerGeoItem(
                 pnu = pnu,
                 center = lcData.center,
                 land = lcData.land,
@@ -211,10 +188,10 @@ class MarkerService(
         }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[Marker Type2] lc={}, reg={}, result={}, hasRegFilter=false, elapsed={}ms",
+        log.info("[MarkerGeo Type2] lc={}, reg={}, result={}, elapsed={}ms",
             lcDataMap.size, regAggMap.size, items.size, elapsed)
 
-        return MarkerResponse(
+        return MarkerGeoResponse(
             totalCount = items.size,
             elapsedMs = elapsed,
             items = items

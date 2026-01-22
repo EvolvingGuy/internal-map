@@ -74,22 +74,30 @@ class LandCharacteristicCursorRepository(
     }
 
     /**
-     * 시도 코드 기반 PNU 경계 조회
-     * 실제 데이터가 있는 시도별로 파티션
+     * 시군구(SGG) 기반 PNU 경계 조회
+     * SGG를 N개 그룹으로 나눠서 워커별로 분배
      */
     fun findPnuBoundaries(partitions: Int): List<String> {
-        // 실제 존재하는 시도 코드 조회
-        val sdCodes = jdbcTemplate.queryForList("""
-            SELECT DISTINCT LEFT(pnu, 2) as sd
+        // 실제 존재하는 시군구 코드 조회 (정렬됨)
+        val sggCodes = jdbcTemplate.queryForList("""
+            SELECT DISTINCT LEFT(pnu, 5) as sgg
             FROM external_data.land_characteristic
             WHERE center IS NOT NULL
-            ORDER BY sd
+            ORDER BY sgg
         """.trimIndent(), String::class.java)
 
-        if (sdCodes.isEmpty()) return listOf("0".repeat(19), "9".repeat(19))
+        if (sggCodes.isEmpty()) return listOf("0".repeat(19), "9".repeat(19))
 
-        // 각 시도의 시작점을 경계로 사용
-        val boundaries = sdCodes.map { sd -> sd.padEnd(19, '0') }.toMutableList()
+        // SGG를 N개 그룹으로 나누기
+        val groupSize = (sggCodes.size + partitions - 1) / partitions  // 올림 나눗셈
+        val boundaries = mutableListOf<String>()
+
+        for (i in 0 until partitions) {
+            val idx = i * groupSize
+            if (idx < sggCodes.size) {
+                boundaries.add(sggCodes[idx].padEnd(19, '0'))
+            }
+        }
         boundaries.add("9".repeat(19))
 
         return boundaries
@@ -109,7 +117,8 @@ class LandCharacteristicCursorRepository(
                 SELECT
                     pnu, bjdong_cd,
                     ST_Y(center) as center_lat, ST_X(center) as center_lng,
-                    jiyuk_cd_1, jimok_cd, area, price
+                    jiyuk_cd_1, jimok_cd, area, price,
+                    ST_AsGeoJSON(geometry) as geometry_geojson
                 FROM external_data.land_characteristic
                 WHERE pnu >= ? AND pnu < ? AND center IS NOT NULL
                 ORDER BY pnu
@@ -120,7 +129,8 @@ class LandCharacteristicCursorRepository(
                 SELECT
                     pnu, bjdong_cd,
                     ST_Y(center) as center_lat, ST_X(center) as center_lng,
-                    jiyuk_cd_1, jimok_cd, area, price
+                    jiyuk_cd_1, jimok_cd, area, price,
+                    ST_AsGeoJSON(geometry) as geometry_geojson
                 FROM external_data.land_characteristic
                 WHERE pnu >= ? AND pnu < ? AND pnu > ? AND center IS NOT NULL
                 ORDER BY pnu
@@ -143,7 +153,8 @@ class LandCharacteristicCursorRepository(
                 jiyukCd1 = rs.getString("jiyuk_cd_1"),
                 jimokCd = rs.getString("jimok_cd"),
                 area = rs.getString("area"),
-                price = rs.getString("price")
+                price = rs.getString("price"),
+                geometryGeoJson = rs.getString("geometry_geojson")
             )
         }
     }
@@ -160,5 +171,6 @@ data class LandCharacteristicLcRow(
     val jiyukCd1: String?,
     val jimokCd: String?,
     val area: String?,
-    val price: String?
+    val price: String?,
+    val geometryGeoJson: String?
 )

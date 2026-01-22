@@ -30,7 +30,8 @@ data class LandData(
     val jimokCd: String?,     // 지목 코드
     val area: Double?,        // 토지면적
     val price: Long?,         // 개별공시지가
-    val center: Map<String, Double>  // { "lat": ..., "lon": ... }
+    val center: Map<String, Double>,  // { "lat": ..., "lon": ... }
+    val geometry: String? = null  // GeoJSON 문자열 (렌더링용, 검색 안 함)
 )
 
 /**

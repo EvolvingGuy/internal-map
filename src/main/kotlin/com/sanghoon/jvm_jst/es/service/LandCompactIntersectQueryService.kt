@@ -2,8 +2,10 @@ package com.sanghoon.jvm_jst.es.service
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch._types.FieldValue
+import co.elastic.clients.elasticsearch._types.GeoShapeRelation
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery
-import com.sanghoon.jvm_jst.es.document.LandCompactDocument
+import co.elastic.clients.json.JsonData
+import com.sanghoon.jvm_jst.es.document.LandCompactIntersectDocument
 import com.sanghoon.jvm_jst.es.dto.*
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -11,47 +13,50 @@ import java.math.BigDecimal
 import java.time.LocalDate
 
 /**
- * Land Compact ES 조회 서비스
- * Marker API용 필지 단위 조회
+ * Land Compact Intersect 조회 서비스
+ * geo_shape intersects 쿼리로 뷰포트와 교차하는 필지 조회
  */
 @Service
-class LandCompactQueryService(
+class LandCompactIntersectQueryService(
     private val esClient: ElasticsearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        const val INDEX_NAME = LandCompactDocument.INDEX_NAME
+        const val INDEX_NAME = LandCompactIntersectDocument.INDEX_NAME
         const val MAX_SIZE = 10000
     }
 
     /**
-     * bbox + 필터로 land_compact 조회
-     * @return pnu -> LandCompactData 맵
+     * bbox와 교차하는 필지 조회 (geo_shape intersects)
      */
-    fun findByBbox(
+    fun findByBboxIntersects(
         swLng: Double,
         swLat: Double,
         neLng: Double,
         neLat: Double,
         filter: LcAggFilter = LcAggFilter()
-    ): Map<String, LandCompactData> {
+    ): Map<String, LandCompactGeoData> {
         val startTime = System.currentTimeMillis()
+
+        // envelope GeoJSON: [[left, top], [right, bottom]] = [[swLng, neLat], [neLng, swLat]]
+        val envelopeJson = mapOf(
+            "type" to "envelope",
+            "coordinates" to listOf(listOf(swLng, neLat), listOf(neLng, swLat))
+        )
 
         val response = esClient.search({ s ->
             s.index(INDEX_NAME)
                 .size(MAX_SIZE)
                 .query { q ->
                     q.bool { bool ->
-                        // bbox 조건
+                        // geo_shape intersects 쿼리
                         bool.must { must ->
-                            must.geoBoundingBox { geo ->
-                                geo.field("land.center")
-                                    .boundingBox { bb ->
-                                        bb.tlbr { tlbr ->
-                                            tlbr.topLeft { tl -> tl.latlon { ll -> ll.lat(neLat).lon(swLng) } }
-                                                .bottomRight { br -> br.latlon { ll -> ll.lat(swLat).lon(neLng) } }
-                                        }
+                            must.geoShape { geo ->
+                                geo.field("land.geometry")
+                                    .shape { shape ->
+                                        shape.shape(JsonData.of(envelopeJson))
+                                            .relation(GeoShapeRelation.Intersects)
                                     }
                             }
                         }
@@ -62,57 +67,59 @@ class LandCompactQueryService(
         }, Map::class.java)
 
         val result = response.hits().hits().mapNotNull { hit ->
-            parseLandCompactData(hit.source())
+            parseLandCompactGeoData(hit.source())
         }.associateBy { it.pnu }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LcQuery] bbox results={}, hasFilter={}, elapsed={}ms",
-            result.size, filter.hasAnyFilter(), elapsed)
+        log.info("[LcIntersectQuery] intersects results={}, elapsed={}ms", result.size, elapsed)
 
         return result
     }
 
     /**
-     * pnu 목록으로 land_compact 조회
-     * @return pnu -> LandCompactData 맵
+     * 카운트만 조회 (비교용)
      */
-    fun findByPnuIds(
-        pnuIds: Collection<String>,
+    fun countByBboxIntersects(
+        swLng: Double,
+        swLat: Double,
+        neLng: Double,
+        neLat: Double,
         filter: LcAggFilter = LcAggFilter()
-    ): Map<String, LandCompactData> {
-        if (pnuIds.isEmpty()) return emptyMap()
-
+    ): Long {
         val startTime = System.currentTimeMillis()
 
-        val response = esClient.search({ s ->
-            s.index(INDEX_NAME)
-                .size(pnuIds.size.coerceAtMost(MAX_SIZE))
+        val envelopeJson = mapOf(
+            "type" to "envelope",
+            "coordinates" to listOf(listOf(swLng, neLat), listOf(neLng, swLat))
+        )
+
+        val response = esClient.count { c ->
+            c.index(INDEX_NAME)
                 .query { q ->
                     q.bool { bool ->
-                        bool.must { m ->
-                            m.terms { t ->
-                                t.field("pnu")
-                                    .terms { tv -> tv.value(pnuIds.map { FieldValue.of(it) }) }
+                        bool.must { must ->
+                            must.geoShape { geo ->
+                                geo.field("land.geometry")
+                                    .shape { shape ->
+                                        shape.shape(JsonData.of(envelopeJson))
+                                            .relation(GeoShapeRelation.Intersects)
+                                    }
                             }
                         }
                         applyFilters(bool, filter)
                         bool
                     }
                 }
-        }, Map::class.java)
-
-        val result = response.hits().hits().mapNotNull { hit ->
-            parseLandCompactData(hit.source())
-        }.associateBy { it.pnu }
+        }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LcQuery] pnuIds={}, results={}, hasFilter={}, elapsed={}ms", pnuIds.size, result.size, filter.hasAnyFilter(), elapsed)
+        log.info("[LcIntersectQuery] count={}, elapsed={}ms", response.count(), elapsed)
 
-        return result
+        return response.count()
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun parseLandCompactData(source: Map<*, *>?): LandCompactData? {
+    private fun parseLandCompactGeoData(source: Map<*, *>?): LandCompactGeoData? {
         if (source == null) return null
 
         val pnu = source["pnu"]?.toString() ?: return null
@@ -124,16 +131,18 @@ class LandCompactQueryService(
         val centerLat = (center?.get("lat") as? Number)?.toDouble() ?: return null
         val centerLon = (center?.get("lon") as? Number)?.toDouble() ?: return null
 
-        return LandCompactData(
+        val geometry = land?.get("geometry") as? Map<String, Any>
+
+        return LandCompactGeoData(
             pnu = pnu,
             center = MarkerCenter(centerLat, centerLon),
             land = land?.let {
-                MarkerLand(
+                MarkerLandGeo(
                     jiyukCd1 = it["jiyukCd1"]?.toString(),
                     jimokCd = it["jimokCd"]?.toString(),
                     area = (it["area"] as? Number)?.toDouble(),
                     price = (it["price"] as? Number)?.toLong(),
-                    geometry = it["geometry"]?.toString()
+                    geometry = geometry
                 )
             },
             building = building?.let {
@@ -171,7 +180,6 @@ class LandCompactQueryService(
     }
 
     private fun applyFilters(bool: BoolQuery.Builder, filter: LcAggFilter) {
-        // Building filters
         if (!filter.buildingMainPurpsCdNm.isNullOrEmpty()) {
             bool.filter { f -> f.terms { t -> t.field("building.mainPurpsCdNm").terms { tv -> tv.value(filter.buildingMainPurpsCdNm.map { FieldValue.of(it) }) } } }
         }
@@ -210,8 +218,6 @@ class LandCompactQueryService(
         if (filter.buildingArchAreaMax != null) {
             bool.filter { f -> f.range { r -> r.number { n -> n.field("building.archArea").lte(filter.buildingArchAreaMax.toDouble()) } } }
         }
-
-        // Land filters
         if (!filter.landJiyukCd1.isNullOrEmpty()) {
             bool.filter { f -> f.terms { t -> t.field("land.jiyukCd1").terms { tv -> tv.value(filter.landJiyukCd1.map { FieldValue.of(it) }) } } }
         }
@@ -230,8 +236,6 @@ class LandCompactQueryService(
         if (filter.landPriceMax != null) {
             bool.filter { f -> f.range { r -> r.number { n -> n.field("land.price").lte(filter.landPriceMax.toDouble()) } } }
         }
-
-        // Trade filters
         if (!filter.tradeProperty.isNullOrEmpty()) {
             bool.filter { f -> f.terms { t -> t.field("lastRealEstateTrade.property").terms { tv -> tv.value(filter.tradeProperty.map { FieldValue.of(it) }) } } }
         }
@@ -261,14 +265,3 @@ class LandCompactQueryService(
         }
     }
 }
-
-/**
- * Land Compact 조회 결과 데이터
- */
-data class LandCompactData(
-    val pnu: String,
-    val center: MarkerCenter,
-    val land: MarkerLand?,
-    val building: MarkerBuilding?,
-    val trade: MarkerTrade?
-)

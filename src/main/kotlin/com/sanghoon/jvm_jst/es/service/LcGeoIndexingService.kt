@@ -3,6 +3,7 @@ package com.sanghoon.jvm_jst.es.service
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch.core.BulkRequest
 import co.elastic.clients.elasticsearch.core.bulk.BulkOperation
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.sanghoon.jvm_jst.entity.BuildingLedgerOutline
 import com.sanghoon.jvm_jst.entity.BuildingLedgerOutlineSummaries
 import com.sanghoon.jvm_jst.es.document.*
@@ -15,43 +16,38 @@ import org.springframework.stereotype.Service
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * LC (Land Compact) 인덱싱 서비스
- * 필지 단위 인덱스 - 비즈니스 필터 있는 경우 사용
+ * LC Geo 인덱싱 서비스
+ * geometry를 object로 저장하는 버전
  */
 @Service
-class LcIndexingService(
+class LcGeoIndexingService(
     private val landCharRepo: LandCharacteristicCursorRepository,
     private val buildingSummariesRepo: BuildingLedgerOutlineSummariesRepository,
     private val buildingOutlineRepo: BuildingLedgerOutlineRepository,
     private val realEstateTradeRepo: RealEstateTradeRepository,
-    private val esClient: ElasticsearchClient
+    private val esClient: ElasticsearchClient,
+    private val objectMapper: ObjectMapper
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        const val INDEX_NAME = LandCompactDocument.INDEX_NAME
+        const val INDEX_NAME = LandCompactGeoDocument.INDEX_NAME
         const val PARALLELISM = 20
         const val BATCH_SIZE = 3000
-        const val BULK_SIZE = 3000
     }
 
-    // ==================== Public API ====================
-
-    /**
-     * 전체 재인덱싱
-     */
     fun reindex(): Map<String, Any> = runBlocking {
         val startTime = System.currentTimeMillis()
         val results = mutableMapOf<String, Any>()
 
         ensureIndexExists()
-        log.info("[LC] ========== 인덱싱 시작 ==========")
+        log.info("[LC-GEO] ========== 인덱싱 시작 ==========")
 
         val totalCount = landCharRepo.countAll()
-        log.info("[LC] 전체 필지 수: {}", totalCount)
+        log.info("[LC-GEO] 전체 필지 수: {}", totalCount)
 
         val boundaries = landCharRepo.findPnuBoundaries(PARALLELISM)
-        log.info("[LC] {} 개 워커로 병렬 처리 시작", boundaries.size - 1)
+        log.info("[LC-GEO] {} 개 워커로 병렬 처리 시작", boundaries.size - 1)
 
         val processedCount = AtomicInteger(0)
         val indexedCount = AtomicInteger(0)
@@ -75,8 +71,8 @@ class LcIndexingService(
         esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
 
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LC] ========== 인덱싱 완료 ==========")
-        log.info("[LC] 처리: {}/{}, 인덱싱: {}, 소요: {}ms", processedCount.get(), totalCount, indexedCount.get(), elapsed)
+        log.info("[LC-GEO] ========== 인덱싱 완료 ==========")
+        log.info("[LC-GEO] 처리: {}/{}, 인덱싱: {}, 소요: {}ms", processedCount.get(), totalCount, indexedCount.get(), elapsed)
 
         results["totalCount"] = totalCount
         results["processed"] = processedCount.get()
@@ -87,9 +83,6 @@ class LcIndexingService(
         results
     }
 
-    /**
-     * 인덱스 카운트
-     */
     fun count(): Long {
         return try {
             esClient.count { c -> c.index(INDEX_NAME) }.count()
@@ -98,26 +91,6 @@ class LcIndexingService(
         }
     }
 
-    /**
-     * forcemerge 실행
-     */
-    fun forcemerge(): Map<String, Any> {
-        val startTime = System.currentTimeMillis()
-        log.info("[LC] forcemerge 시작...")
-        esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-        val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LC] forcemerge 완료: {}ms", elapsed)
-
-        return mapOf(
-            "action" to "forcemerge",
-            "elapsedMs" to elapsed,
-            "success" to true
-        )
-    }
-
-    /**
-     * 인덱스 삭제
-     */
     fun deleteIndex(): Map<String, Any> {
         val exists = try {
             esClient.indices().exists { e -> e.index(INDEX_NAME) }.value()
@@ -127,15 +100,12 @@ class LcIndexingService(
 
         return if (exists) {
             esClient.indices().delete { d -> d.index(INDEX_NAME) }
-            log.info("[LC] 인덱스 삭제 완료: {}", INDEX_NAME)
+            log.info("[LC-GEO] 인덱스 삭제 완료: {}", INDEX_NAME)
             mapOf("deleted" to true, "index" to INDEX_NAME)
         } else {
-            log.info("[LC] 삭제할 인덱스 없음: {}", INDEX_NAME)
             mapOf("deleted" to false, "index" to INDEX_NAME, "reason" to "not exists")
         }
     }
-
-    // ==================== 파티션 처리 ====================
 
     private suspend fun processPartition(
         workerIndex: Int,
@@ -149,23 +119,16 @@ class LcIndexingService(
         var workerProcessed = 0
         var workerIndexed = 0
 
-        log.info("[LC] Worker-{} 시작: pnu {} ~ {}", workerIndex, minPnu, maxPnu)
+        log.info("[LC-GEO] Worker-{} 시작: pnu {} ~ {}", workerIndex, minPnu, maxPnu)
 
         while (true) {
-            val t0 = System.currentTimeMillis()
             val rows = landCharRepo.findForLcIndexing(minPnu, maxPnu, lastPnu, BATCH_SIZE)
-            val t1 = System.currentTimeMillis()
             if (rows.isEmpty()) break
-
-            log.info("[LC] W-{} land_char 조회: {}ms ({}건)", workerIndex, t1 - t0, rows.size)
 
             val docs = processBatch(rows, workerIndex)
 
             if (docs.isNotEmpty()) {
-                val tBulk0 = System.currentTimeMillis()
                 bulkIndex(docs)
-                val tBulk1 = System.currentTimeMillis()
-                log.info("[LC] W-{} bulkIndex: {}ms ({}건)", workerIndex, tBulk1 - tBulk0, docs.size)
             }
 
             lastPnu = rows.last().pnu
@@ -177,89 +140,64 @@ class LcIndexingService(
 
             if (globalProcessed % 100000 < rows.size) {
                 val pct = String.format("%.1f", globalProcessed * 100.0 / totalCount)
-                log.info("[LC] 진행: {}/{} ({}%), 인덱싱: {}", globalProcessed, totalCount, pct, indexedCount.get())
+                log.info("[LC-GEO] 진행: {}/{} ({}%), 인덱싱: {}", globalProcessed, totalCount, pct, indexedCount.get())
             }
         }
 
-        log.info("[LC] Worker-{} 완료: {} 건 (인덱싱: {})", workerIndex, workerProcessed, workerIndexed)
+        log.info("[LC-GEO] Worker-{} 완료: {} 건 (인덱싱: {})", workerIndex, workerProcessed, workerIndexed)
     }
 
     private fun processBatch(
         rows: List<LandCharacteristicLcRow>,
         workerIndex: Int
-    ): List<LandCompactDocument> {
+    ): List<LandCompactGeoDocument> {
         val pnuList = rows.map { it.pnu }
         val buildingPnuList = pnuList.map { PnuUtils.convertLandPnuToBuilding(it) }
 
-        var t0 = System.currentTimeMillis()
-        val summariesMap = loadBuildingSummaries(buildingPnuList, workerIndex)
-        val t1 = System.currentTimeMillis()
-
-        val outlineMap = loadBuildingOutlines(buildingPnuList, workerIndex)
-        val t2 = System.currentTimeMillis()
-
-        val tradeMap = loadRealEstateTrades(pnuList, workerIndex)
-        val t3 = System.currentTimeMillis()
-
-        log.info("[LC] W-{} 조회시간: summaries={}ms, outline={}ms, trade={}ms",
-            workerIndex, t1 - t0, t2 - t1, t3 - t2)
+        val summariesMap = loadBuildingSummaries(buildingPnuList)
+        val outlineMap = loadBuildingOutlines(buildingPnuList)
+        val tradeMap = loadRealEstateTrades(pnuList)
 
         return rows.mapNotNull { row ->
             createDocument(row, summariesMap, outlineMap, tradeMap)
         }
     }
 
-    // ==================== 데이터 로딩 ====================
-
-    private fun loadBuildingSummaries(
-        buildingPnuList: List<String>,
-        workerIndex: Int
-    ): Map<String, BuildingLedgerOutlineSummaries> {
+    private fun loadBuildingSummaries(buildingPnuList: List<String>): Map<String, BuildingLedgerOutlineSummaries> {
         return try {
             buildingSummariesRepo.findByPnuIn(buildingPnuList)
                 .groupBy { PnuUtils.buildPnuFrom(it) }
                 .mapValues { it.value.first() }
         } catch (e: Exception) {
-            log.warn("[LC] Worker-{} summaries 조회 실패: {}", workerIndex, e.message)
             emptyMap()
         }
     }
 
-    private fun loadBuildingOutlines(
-        buildingPnuList: List<String>,
-        workerIndex: Int
-    ): Map<String, BuildingLedgerOutline> {
+    private fun loadBuildingOutlines(buildingPnuList: List<String>): Map<String, BuildingLedgerOutline> {
         return try {
             buildingOutlineRepo.findByPnuIn(buildingPnuList)
                 .groupBy { PnuUtils.buildPnuFrom(it) }
                 .mapValues { it.value.first() }
         } catch (e: Exception) {
-            log.warn("[LC] Worker-{} outline 조회 실패: {}", workerIndex, e.message)
             emptyMap()
         }
     }
 
-    private fun loadRealEstateTrades(
-        pnuList: List<String>,
-        workerIndex: Int
-    ): Map<String, RealEstateTradeProjection> {
+    private fun loadRealEstateTrades(pnuList: List<String>): Map<String, RealEstateTradeProjection> {
         return try {
             realEstateTradeRepo.findLatestByPnuIn(pnuList)
                 .associateBy { it.pnu }
         } catch (e: Exception) {
-            log.warn("[LC] Worker-{} trade 조회 실패: {}", workerIndex, e.message)
             emptyMap()
         }
     }
-
-    // ==================== 문서 생성 ====================
 
     private fun createDocument(
         row: LandCharacteristicLcRow,
         summariesMap: Map<String, BuildingLedgerOutlineSummaries>,
         outlineMap: Map<String, BuildingLedgerOutline>,
         tradeMap: Map<String, RealEstateTradeProjection>
-    ): LandCompactDocument? {
+    ): LandCompactGeoDocument? {
         return try {
             val buildingPnu = PnuUtils.convertLandPnuToBuilding(row.pnu)
 
@@ -268,31 +206,38 @@ class LcIndexingService(
 
             val tradeData = tradeMap[row.pnu]?.let { toRealEstateTradeData(it) }
 
-            LandCompactDocument(
+            LandCompactGeoDocument(
                 pnu = row.pnu,
                 sd = PnuUtils.extractSd(row.pnu),
                 sgg = PnuUtils.extractSgg(row.pnu),
                 emd = PnuUtils.extractEmd(row.pnu),
-                land = toLandData(row),
+                land = toLandDataGeo(row),
                 building = buildingData,
                 lastRealEstateTrade = tradeData
             )
         } catch (e: Exception) {
-            log.warn("[LC] 문서 생성 실패 pnu={}: {}", row.pnu, e.message)
+            log.warn("[LC-GEO] 문서 생성 실패 pnu={}: {}", row.pnu, e.message)
             null
         }
     }
 
-    // ==================== 변환 ====================
+    @Suppress("UNCHECKED_CAST")
+    private fun toLandDataGeo(row: LandCharacteristicLcRow): LandDataGeo {
+        val geometryObj: Map<String, Any>? = row.geometryGeoJson?.takeIf { it.isNotBlank() }?.let {
+            try {
+                objectMapper.readValue(it, Map::class.java) as Map<String, Any>
+            } catch (e: Exception) {
+                null
+            }
+        }
 
-    private fun toLandData(row: LandCharacteristicLcRow): LandData {
-        return LandData(
+        return LandDataGeo(
             jiyukCd1 = row.jiyukCd1?.takeIf { it.isNotBlank() },
             jimokCd = row.jimokCd?.takeIf { it.isNotBlank() },
             area = ParsingUtils.toDoubleOrNull(row.area),
             price = ParsingUtils.toLongOrNull(row.price),
             center = mapOf("lat" to row.centerLat, "lon" to row.centerLng),
-            geometry = row.geometryGeoJson?.takeIf { it.isNotBlank() }
+            geometry = geometryObj
         )
     }
 
@@ -336,8 +281,6 @@ class LcIndexingService(
         )
     }
 
-    // ==================== ES 인덱스 ====================
-
     private fun ensureIndexExists() {
         val exists = try {
             esClient.indices().exists { e -> e.index(INDEX_NAME) }.value()
@@ -347,7 +290,7 @@ class LcIndexingService(
 
         if (exists) {
             esClient.indices().delete { d -> d.index(INDEX_NAME) }
-            log.info("[LC] 기존 인덱스 삭제")
+            log.info("[LC-GEO] 기존 인덱스 삭제")
         }
 
         esClient.indices().create { c ->
@@ -366,7 +309,7 @@ class LcIndexingService(
                         .properties("lastRealEstateTrade") { p -> tradeMapping(p) }
                 }
         }
-        log.info("[LC] 인덱스 생성: {}", INDEX_NAME)
+        log.info("[LC-GEO] 인덱스 생성: {}", INDEX_NAME)
     }
 
     private fun landMapping(p: co.elastic.clients.elasticsearch._types.mapping.Property.Builder) =
@@ -376,7 +319,7 @@ class LcIndexingService(
                 .properties("area") { pp -> pp.double_ { it } }
                 .properties("price") { pp -> pp.long_ { it } }
                 .properties("center") { pp -> pp.geoPoint { it } }
-                .properties("geometry") { pp -> pp.keyword { k -> k.index(false).docValues(false) } }
+                .properties("geometry") { pp -> pp.`object` { obj -> obj.enabled(false) } }
         }
 
     private fun buildingMapping(p: co.elastic.clients.elasticsearch._types.mapping.Property.Builder) =
@@ -401,7 +344,7 @@ class LcIndexingService(
                 .properties("landAmountPerM2") { pp -> pp.scaledFloat { sf -> sf.scalingFactor(100.0) } }
         }
 
-    private fun bulkIndex(docs: List<LandCompactDocument>) {
+    private fun bulkIndex(docs: List<LandCompactGeoDocument>) {
         if (docs.isEmpty()) return
 
         val operations = docs.map { doc ->
@@ -421,7 +364,7 @@ class LcIndexingService(
         val response = esClient.bulk(request)
         if (response.errors()) {
             val failedCount = response.items().count { it.error() != null }
-            log.warn("[LC bulkIndex] 일부 실패: {}/{}", failedCount, docs.size)
+            log.warn("[LC-GEO bulkIndex] 일부 실패: {}/{}", failedCount, docs.size)
         }
     }
 }

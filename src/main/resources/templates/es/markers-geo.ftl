@@ -473,8 +473,8 @@
 
             const queryString = buildParams();
 
-            // Type 1 호출 (폴리곤도 같이 그림)
-            fetch('/api/markers/type1?' + queryString)
+            // Type 1 호출 (폴리곤도 같이 그림) - markers-geo API
+            fetch('/api/markers-geo/type1?' + queryString)
                 .then(res => res.text())
                 .then(text => {
                     const bytes = new Blob([text]).size;
@@ -487,8 +487,8 @@
                 })
                 .catch(err => console.error('type1 error:', err));
 
-            // Type 2 호출
-            fetch('/api/markers/type2?' + queryString)
+            // Type 2 호출 - markers-geo API
+            fetch('/api/markers-geo/type2?' + queryString)
                 .then(res => res.text())
                 .then(text => {
                     const bytes = new Blob([text]).size;
@@ -556,14 +556,14 @@
                 const key = item.pnu;
                 activeKeys.add(key);
 
-                const geojson = item.land?.geometry;
-                if (!geojson) continue;
+                // geometry가 이미 object로 옴 (JSON.parse 불필요)
+                const geo = item.land?.geometry;
+                if (!geo) continue;
 
                 const existing = polygons.get(key);
-                if (existing) continue;  // 이미 그려진 건 스킵
+                if (existing) continue;
 
                 try {
-                    const geo = JSON.parse(geojson);
                     const paths = geojsonToPaths(geo);
                     if (!paths || paths.length === 0) continue;
 
@@ -580,7 +580,7 @@
 
                     polygons.set(key, polygon);
                 } catch (e) {
-                    console.warn('polygon parse error:', key, e);
+                    console.warn('polygon error:', key, e);
                 }
             }
 
