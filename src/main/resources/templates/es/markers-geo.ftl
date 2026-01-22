@@ -19,15 +19,15 @@
             border-radius: 8px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             font-size: 13px;
-            min-width: 200px;
+            min-width: 265px;
         }
         #info h3 { margin-bottom: 12px; color: #1f2937; }
         #info .section { margin: 8px 0; padding: 8px; border-radius: 4px; }
-        #info .section.type1 { background: #dbeafe; }
-        #info .section.type2 { background: #ffedd5; }
+        #info .section.object { background: #dbeafe; }
+        #info .section.string { background: #dcfce7; }
         #info .section-title { font-weight: 600; margin-bottom: 4px; }
-        #info .section.type1 .section-title { color: #1d4ed8; }
-        #info .section.type2 .section-title { color: #ea580c; }
+        #info .section.object .section-title { color: #1d4ed8; }
+        #info .section.string .section-title { color: #16a34a; }
         #zoom-warning {
             display: none;
             position: absolute;
@@ -133,24 +133,53 @@
             cursor: pointer;
         }
         .single-checkbox input { width: 14px; height: 14px; }
+
+        .compare-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .compare-section .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .compare-section .label { color: #6b7280; }
+        .compare-section .value { font-weight: 600; }
+        .faster { color: #16a34a; }
+        .slower { color: #dc2626; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="info">
-        <h3>Markers (Land + Registration)</h3>
+        <h3>Object vs String</h3>
         <div>줌 레벨: <span id="zoomLevel">-</span></div>
-        <div class="section type1">
-            <div class="section-title">Type1 (Land 우선)</div>
-            <div>마커: <span id="type1Count">0</span>개</div>
-            <div>응답: <span id="type1Elapsed">0</span>ms</div>
-            <div>용량: <span id="type1Size">0</span></div>
+        <div class="section object">
+            <div class="section-title">Object (land_compact_geo)</div>
+            <div>마커: <span id="objectCount">0</span>개</div>
+            <div>응답: <span id="objectElapsed">0</span>ms</div>
+            <div>용량: <span id="objectSize">0</span></div>
         </div>
-        <div class="section type2">
-            <div class="section-title">Type2 (Reg 우선)</div>
-            <div>마커: <span id="type2Count">0</span>개</div>
-            <div>응답: <span id="type2Elapsed">0</span>ms</div>
-            <div>용량: <span id="type2Size">0</span></div>
+        <div class="section string">
+            <div class="section-title">String (land_compact)</div>
+            <div>마커: <span id="stringCount">0</span>개</div>
+            <div>응답: <span id="stringElapsed">0</span>ms</div>
+            <div>용량: <span id="stringSize">0</span></div>
+        </div>
+        <div class="compare-section">
+            <div class="row">
+                <span class="label">Faster</span>
+                <span class="value" id="fasterMethod">-</span>
+            </div>
+            <div class="row">
+                <span class="label">Time Diff</span>
+                <span class="value" id="timeDiff">-</span>
+            </div>
+            <div class="row">
+                <span class="label">Size Diff</span>
+                <span class="value" id="sizeDiff">-</span>
+            </div>
         </div>
     </div>
     <div id="zoom-warning">줌 레벨 17 이상에서만 마커가 표시됩니다</div>
@@ -343,10 +372,13 @@
         });
 
         let debounceTimer = null;
-        let type1Markers = new Map();
-        let type2Markers = new Map();
+        let objectMarkers = new Map();
+        let stringMarkers = new Map();
         let polygons = new Map();
         let infoWindows = new Map();
+
+        let objectResult = null;
+        let stringResult = null;
 
         // Checkbox styling
         document.querySelectorAll('.checkbox-group input[type="checkbox"]').forEach(cb => {
@@ -460,6 +492,27 @@
                 .join('&');
         }
 
+        function updateComparison() {
+            if (!objectResult || !stringResult) return;
+
+            const timeDiff = objectResult.elapsed - stringResult.elapsed;
+            const sizeDiff = objectResult.bytes - stringResult.bytes;
+
+            const fasterEl = document.getElementById('fasterMethod');
+            if (timeDiff > 0) {
+                fasterEl.innerHTML = '<span class="faster">String</span>';
+            } else if (timeDiff < 0) {
+                fasterEl.innerHTML = '<span class="faster">Object</span>';
+            } else {
+                fasterEl.textContent = 'Same';
+            }
+
+            document.getElementById('timeDiff').textContent = Math.abs(timeDiff) + 'ms';
+
+            const smaller = sizeDiff > 0 ? 'String' : (sizeDiff < 0 ? 'Object' : 'Same');
+            document.getElementById('sizeDiff').textContent = formatSize(Math.abs(sizeDiff)) + ' (' + smaller + ' smaller)';
+        }
+
         function fetchData() {
             const zoom = map.getZoom();
             document.getElementById('zoomLevel').textContent = zoom;
@@ -473,40 +526,44 @@
 
             const queryString = buildParams();
 
-            // Type 1 호출 (폴리곤도 같이 그림) - markers-geo API
-            fetch('/api/markers-geo/type1?' + queryString)
+            // Object (land_compact_geo) - markers-geo API
+            fetch('/api/es/markers-geo/type1?' + queryString)
                 .then(res => res.text())
                 .then(text => {
                     const bytes = new Blob([text]).size;
-                    document.getElementById('type1Size').textContent = formatSize(bytes);
+                    document.getElementById('objectSize').textContent = formatSize(bytes);
                     const data = JSON.parse(text);
-                    document.getElementById('type1Count').textContent = data.totalCount.toLocaleString();
-                    document.getElementById('type1Elapsed').textContent = data.elapsedMs;
-                    drawMarkers(data.items, 'type1');
-                    drawPolygons(data.items);
+                    document.getElementById('objectCount').textContent = data.totalCount.toLocaleString();
+                    document.getElementById('objectElapsed').textContent = data.elapsedMs;
+                    objectResult = { elapsed: data.elapsedMs, bytes: bytes };
+                    updateComparison();
+                    drawMarkers(data.items, 'object', true);
+                    drawPolygonsFromObject(data.items);
                 })
-                .catch(err => console.error('type1 error:', err));
+                .catch(err => console.error('object error:', err));
 
-            // Type 2 호출 - markers-geo API
-            fetch('/api/markers-geo/type2?' + queryString)
+            // String (land_compact) - markers API
+            fetch('/api/es/markers/type1?' + queryString)
                 .then(res => res.text())
                 .then(text => {
                     const bytes = new Blob([text]).size;
-                    document.getElementById('type2Size').textContent = formatSize(bytes);
+                    document.getElementById('stringSize').textContent = formatSize(bytes);
                     const data = JSON.parse(text);
-                    document.getElementById('type2Count').textContent = data.totalCount.toLocaleString();
-                    document.getElementById('type2Elapsed').textContent = data.elapsedMs;
-                    drawMarkers(data.items, 'type2');
+                    document.getElementById('stringCount').textContent = data.totalCount.toLocaleString();
+                    document.getElementById('stringElapsed').textContent = data.elapsedMs;
+                    stringResult = { elapsed: data.elapsedMs, bytes: bytes };
+                    updateComparison();
+                    drawMarkers(data.items, 'string', false);
                 })
-                .catch(err => console.error('type2 error:', err));
+                .catch(err => console.error('string error:', err));
         }
 
-        function drawMarkers(items, type) {
-            const markerMap = type === 'type1' ? type1Markers : type2Markers;
+        function drawMarkers(items, type, isObject) {
+            const markerMap = type === 'object' ? objectMarkers : stringMarkers;
             const activeKeys = new Set();
 
-            // 좌우 오프셋 (경도 기준, 약 10m 정도)
-            const lngOffset = type === 'type1' ? -0.0001 : 0.0001;
+            // 좌우 오프셋 (Object는 왼쪽, String은 오른쪽)
+            const lngOffset = type === 'object' ? -0.0001 : 0.0001;
 
             for (const item of items) {
                 const key = item.pnu;
@@ -529,11 +586,11 @@
                             content: buildMarkerHtml(item, type),
                             anchor: new naver.maps.Point(24, 24)
                         },
-                        zIndex: type === 'type1' ? 100 : 50
+                        zIndex: type === 'object' ? 100 : 50
                     });
 
                     naver.maps.Event.addListener(marker, 'click', () => {
-                        showInfoWindow(item, marker);
+                        showInfoWindow(item, marker, isObject);
                     });
 
                     markerMap.set(key, marker);
@@ -549,7 +606,7 @@
             }
         }
 
-        function drawPolygons(items) {
+        function drawPolygonsFromObject(items) {
             const activeKeys = new Set();
 
             for (const item of items) {
@@ -613,8 +670,8 @@
 
         function buildMarkerHtml(item, type) {
             const reg = item.registration;
-            const size = type === 'type1' ? 48 : 40;
-            const color = type === 'type1' ? '#1d4ed8' : '#ea580c';
+            const size = type === 'object' ? 48 : 40;
+            const color = type === 'object' ? '#1d4ed8' : '#16a34a';
 
             // 등기 정보 없으면 '-' 표시, 있으면 count/myCount
             const label = reg ? (reg.count + '/' + reg.myCount) : '-';
@@ -626,7 +683,7 @@
                 label + '</div>';
         }
 
-        function showInfoWindow(item, marker) {
+        function showInfoWindow(item, marker, isObject) {
             // 기존 infoWindow 닫기
             for (const iw of infoWindows.values()) {
                 iw.close();
@@ -638,6 +695,7 @@
 
             let content = '<div style="padding:12px;min-width:280px;font-size:13px;">';
             content += '<div style="font-weight:bold;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;">PNU: ' + item.pnu + '</div>';
+            content += '<div style="background:#f0fdf4;padding:4px 8px;border-radius:4px;margin-bottom:8px;font-size:11px;">' + (isObject ? 'Object (land_compact_geo)' : 'String (land_compact)') + '</div>';
 
             // Registration
             content += '<div style="background:#f3f4f6;padding:8px;border-radius:4px;margin-bottom:8px;">';
@@ -689,17 +747,17 @@
         }
 
         function clearAllMarkers() {
-            for (const marker of type1Markers.values()) marker.setMap(null);
-            for (const marker of type2Markers.values()) marker.setMap(null);
+            for (const marker of objectMarkers.values()) marker.setMap(null);
+            for (const marker of stringMarkers.values()) marker.setMap(null);
             for (const polygon of polygons.values()) polygon.setMap(null);
-            type1Markers.clear();
-            type2Markers.clear();
+            objectMarkers.clear();
+            stringMarkers.clear();
             polygons.clear();
 
-            document.getElementById('type1Count').textContent = '0';
-            document.getElementById('type2Count').textContent = '0';
-            document.getElementById('type1Elapsed').textContent = '0';
-            document.getElementById('type2Elapsed').textContent = '0';
+            document.getElementById('objectCount').textContent = '0';
+            document.getElementById('stringCount').textContent = '0';
+            document.getElementById('objectElapsed').textContent = '0';
+            document.getElementById('stringElapsed').textContent = '0';
         }
 
         function onMapIdle() {

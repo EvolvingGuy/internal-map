@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ES H3Agg - ${levelName}</title>
+    <title>ES LDRC - ${levelName}</title>
     <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${naverMapClientId}"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -48,7 +48,7 @@
 <body>
     <div id="map"></div>
     <div id="info">
-        <h3>ES H3Agg - ${levelName}</h3>
+        <h3>ES LDRC - ${levelName}</h3>
         <div>H3 셀: <span id="h3Count">0</span>개</div>
         <div>클러스터: <span id="clusterCount">0</span>개</div>
         <div>총 필지: <span id="totalCount">0</span>개</div>
@@ -56,17 +56,17 @@
     </div>
     <div id="nav">
         <strong>Level</strong>
-        <a href="/page/es/h3agg/sd" class="${(level == 'SD')?then('active', '')}">시도 (SD)</a>
-        <a href="/page/es/h3agg/sgg" class="${(level == 'SGG')?then('active', '')}">시군구 (SGG)</a>
-        <a href="/page/es/h3agg/emd" class="${(level == 'EMD')?then('active', '')}">읍면동 (EMD)</a>
+        <a href="/page/es/ldrc/sd" class="${(level == 'SD')?then('active', '')}">시도 (SD)</a>
+        <a href="/page/es/ldrc/sgg" class="${(level == 'SGG')?then('active', '')}">시군구 (SGG)</a>
+        <a href="/page/es/ldrc/emd" class="${(level == 'EMD')?then('active', '')}">읍면동 (EMD)</a>
     </div>
 
     <script>
         const LEVEL = '${level}';
 
         const map = new naver.maps.Map('map', {
-            center: new naver.maps.LatLng(36.5, 127.5),
-            zoom: 7
+            center: new naver.maps.LatLng(37.5665, 126.9780),
+            zoom: ${defaultZoom}
         });
 
         let debounceTimer = null;
@@ -83,10 +83,11 @@
                 swLat: sw.lat(),
                 neLng: ne.lng(),
                 neLat: ne.lat(),
-                level: LEVEL
+                level: LEVEL,
+                zoom: map.getZoom()
             });
 
-            fetch(`/api/es/h3-agg/clusters?${'$'}{params}`)
+            fetch(`/api/es/ldrc/clusters?${'$'}{params}`)
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('h3Count').textContent = data.h3Count.toLocaleString();

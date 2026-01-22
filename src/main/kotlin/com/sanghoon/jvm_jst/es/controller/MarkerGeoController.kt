@@ -18,7 +18,7 @@ import java.time.LocalDate
  * geometry를 object로 반환 (이스케이프 없음)
  */
 @RestController
-@RequestMapping("/api/markers-geo")
+@RequestMapping("/api/es/markers-geo")
 class MarkerGeoApiController(
     private val markerGeoService: MarkerGeoService
 ) {
@@ -187,14 +187,14 @@ class MarkerGeoApiController(
  * Marker Geo Page Controller
  */
 @Controller
-@RequestMapping("/page/markers-geo")
+@RequestMapping("/page/es/markers-geo")
 class MarkerGeoPageController(
     @Value("\${naver.map.client-id}") private val naverMapClientId: String
 ) {
     @GetMapping
     fun page(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
-        model.addAttribute("title", "Markers Geo - geometry as object")
+        model.addAttribute("title", "Object vs String Compare")
         return "es/markers-geo"
     }
 }

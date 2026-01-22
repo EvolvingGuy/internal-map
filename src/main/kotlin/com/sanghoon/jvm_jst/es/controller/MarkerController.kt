@@ -17,7 +17,7 @@ import java.time.LocalDate
  * Marker API Controller
  */
 @RestController
-@RequestMapping("/api/markers")
+@RequestMapping("/api/es/markers")
 class MarkerApiController(
     private val markerService: MarkerService
 ) {
@@ -204,7 +204,7 @@ class MarkerApiController(
  * Marker Page Controller
  */
 @Controller
-@RequestMapping("/page/markers")
+@RequestMapping("/page/es/markers")
 class MarkerPageController(
     @Value("\${naver.map.client-id}") private val naverMapClientId: String
 ) {

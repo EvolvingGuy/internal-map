@@ -2,155 +2,174 @@ package com.sanghoon.jvm_jst.es.service
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch._types.FieldValue
-import com.sanghoon.jvm_jst.es.document.LandDynamicRegionClusterDocument
-import com.uber.h3core.H3Core
-import com.uber.h3core.util.LatLng
+import co.elastic.clients.elasticsearch._types.aggregations.Aggregation
+import co.elastic.clients.elasticsearch._types.query_dsl.Query
+import com.sanghoon.jvm_jst.es.document.LdrcDocument
+import com.sanghoon.jvm_jst.rds.common.BBox
+import com.sanghoon.jvm_jst.rds.common.H3Util
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
-/**
- * LDRC 가변형 행정구역 클러스터 조회 서비스
- */
 @Service
 class LdrcQueryService(
     private val esClient: ElasticsearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val h3 = H3Core.newInstance()
 
     companion object {
-        const val INDEX_NAME = LandDynamicRegionClusterDocument.INDEX_NAME
+        const val INDEX_NAME = LdrcDocument.INDEX_NAME
+
+        // 시도코드 → 이름 매핑
+        val SIDO_NAMES = mapOf(
+            11L to "서울특별시",
+            26L to "부산광역시",
+            27L to "대구광역시",
+            28L to "인천광역시",
+            29L to "광주광역시",
+            30L to "대전광역시",
+            31L to "울산광역시",
+            36L to "세종특별자치시",
+            41L to "경기도",
+            43L to "충청북도",
+            44L to "충청남도",
+            46L to "전라남도",
+            47L to "경상북도",
+            48L to "경상남도",
+            50L to "제주특별자치도",
+            51L to "강원특별자치도",
+            52L to "전북특별자치도"
+        )
+
+        // 레벨별 H3 resolution
+        val LEVEL_RESOLUTION = mapOf(
+            "SD" to 5,
+            "SGG" to 7,
+            "EMD" to 10
+        )
     }
 
     /**
-     * bbox 내 가변형 클러스터 조회 (행정구역별 그룹핑)
-     * @param level SD, SGG, EMD
+     * bbox로 LDRC 조회 (무필터용)
      */
-    fun findByBbox(level: String, swLng: Double, swLat: Double, neLng: Double, neLat: Double): LdrcQueryResult {
+    fun queryByBBox(
+        swLng: Double,
+        swLat: Double,
+        neLng: Double,
+        neLat: Double,
+        level: String
+    ): LdrcResponse {
         val startTime = System.currentTimeMillis()
+        val bbox = BBox(swLng, swLat, neLng, neLat)
+        val resolution = LEVEL_RESOLUTION[level] ?: 5
 
-        val h3Res = when (level) {
-            "SD" -> 5
-            "SGG" -> 7
-            "EMD" -> 10
-            else -> 10
+        // bbox → H3 인덱스 목록
+        val h3Start = System.currentTimeMillis()
+        val h3Indexes = H3Util.bboxToH3Indexes(bbox, resolution)
+        val h3Time = System.currentTimeMillis() - h3Start
+
+        if (h3Indexes.isEmpty()) {
+            log.info("[LDRC query] H3 인덱스 없음 (한국 영역 밖)")
+            return LdrcResponse(
+                level = level,
+                h3Count = 0,
+                clusters = emptyList(),
+                totalCount = 0,
+                elapsedMs = System.currentTimeMillis() - startTime
+            )
         }
 
-        // bbox 내 H3 셀 구하기
-        val h3Cells = getH3CellsInBbox(swLng, swLat, neLng, neLat, h3Res)
-        if (h3Cells.isEmpty()) {
-            return LdrcQueryResult(emptyList(), 0, System.currentTimeMillis() - startTime)
-        }
+        log.info("[LDRC query] level={}, H3 인덱스: {}개, H3 변환: {}ms", level, h3Indexes.size, h3Time)
 
-        // ES에서 해당 H3 셀들의 문서 조회
-        val docs = queryByH3Cells(level, h3Cells)
+        // ES 쿼리
+        val esStart = System.currentTimeMillis()
+        val response = esClient.search({ s ->
+            s.index(INDEX_NAME)
+                .size(0)
+                .query(buildQuery(level, h3Indexes))
+                .aggregations("by_region", Aggregation.of { agg ->
+                    agg.terms { t -> t.field("regionCode").size(1000) }
+                        .aggregations(mapOf(
+                            "sum_cnt" to Aggregation.of { a -> a.sum { sum -> sum.field("cnt") } },
+                            "sum_lat" to Aggregation.of { a -> a.sum { sum -> sum.field("sumLat") } },
+                            "sum_lng" to Aggregation.of { a -> a.sum { sum -> sum.field("sumLng") } }
+                        ))
+                })
+        }, Void::class.java)
+        val esTime = System.currentTimeMillis() - esStart
 
-        // 행정구역 코드별 그룹핑
-        val grouped = docs.groupBy { it.code }
-        val regions = grouped.map { (code, docList) ->
-            val totalCount = docList.sumOf { it.count }
-            val totalSumLat = docList.sumOf { it.sumLat }
-            val totalSumLng = docList.sumOf { it.sumLng }
-            val avgLat = if (totalCount > 0) totalSumLat / totalCount else 0.0
-            val avgLng = if (totalCount > 0) totalSumLng / totalCount else 0.0
+        // 결과 파싱
+        val regionAgg = response.aggregations()["by_region"]?.lterms()
+        val clusters = regionAgg?.buckets()?.array()?.map { bucket ->
+            val code = bucket.key()
+            val totalCnt = bucket.aggregations()["sum_cnt"]?.sum()?.value()?.toLong() ?: 0
+            val totalLat = bucket.aggregations()["sum_lat"]?.sum()?.value() ?: 0.0
+            val totalLng = bucket.aggregations()["sum_lng"]?.sum()?.value() ?: 0.0
 
-            LdrcRegionData(
+            val centerLat = if (totalCnt > 0) totalLat / totalCnt else 0.0
+            val centerLng = if (totalCnt > 0) totalLng / totalCnt else 0.0
+
+            LdrcCluster(
                 code = code,
-                name = code,
-                cnt = totalCount,
-                centerLat = avgLat,
-                centerLng = avgLng
+                name = getRegionName(level, code),
+                count = totalCnt,
+                centerLat = centerLat,
+                centerLng = centerLng
             )
-        }
+        } ?: emptyList()
 
-        val totalCount = regions.sumOf { it.cnt }
-        val elapsed = System.currentTimeMillis() - startTime
+        val totalCount = clusters.sumOf { it.count }
+        val totalElapsed = System.currentTimeMillis() - startTime
 
-        log.info("[LDRC] level={}, h3Cells={}, docs={}, regions={}, totalCount={}, total={}ms",
-            level, h3Cells.size, docs.size, regions.size, totalCount, elapsed)
+        log.info("[LDRC query] ES 쿼리: {}ms, 클러스터: {}개, 총 필지: {}, 전체: {}ms",
+            esTime, clusters.size, totalCount, totalElapsed)
 
-        return LdrcQueryResult(regions, totalCount, elapsed)
+        return LdrcResponse(
+            level = level,
+            h3Count = h3Indexes.size,
+            clusters = clusters,
+            totalCount = totalCount,
+            elapsedMs = totalElapsed
+        )
     }
 
-    private fun getH3CellsInBbox(swLng: Double, swLat: Double, neLng: Double, neLat: Double, res: Int): List<Long> {
-        return try {
-            val polygon = listOf(
-                LatLng(swLat, swLng),
-                LatLng(swLat, neLng),
-                LatLng(neLat, neLng),
-                LatLng(neLat, swLng),
-                LatLng(swLat, swLng)
-            )
-            h3.polygonToCells(polygon, emptyList(), res).toList()
-        } catch (e: Exception) {
-            log.warn("[LdrcQuery] H3 polyfill 실패: {}", e.message)
-            emptyList()
-        }
-    }
-
-    private fun queryByH3Cells(level: String, h3Cells: List<Long>): List<LdrcDoc> {
-        val results = mutableListOf<LdrcDoc>()
-        val cellChunks = h3Cells.chunked(1000)
-
-        for ((idx, chunk) in cellChunks.withIndex()) {
-            val response = esClient.search({ s ->
-                s.index(INDEX_NAME)
-                    .size(10000)
-                    .profile(true)
-                    .query { q ->
-                        q.bool { b ->
-                            b.must { m -> m.term { t -> t.field("level").value(level) } }
-                                .must { m -> m.terms { t -> t.field("h3Index").terms { tv -> tv.value(chunk.map { FieldValue.of(it) }) } } }
-                        }
-                    }
-                    .source { src -> src.filter { f -> f.includes("code", "count", "sumLat", "sumLng") } }
-            }, Map::class.java)
-
-            val esTook = response.took()
-            val hits = response.hits().hits()
-
-            // profile 로깅 (첫 번째 청크만)
-            if (idx == 0) {
-                response.profile()?.shards()?.forEachIndexed { shardIdx, shardProfile ->
-                    shardProfile.searches().forEach { search ->
-                        search.query().forEach { queryProfile ->
-                            val timeMs = String.format("%.2f", queryProfile.timeInNanos() / 1_000_000.0)
-                            log.info("[LDRC Profile] 샤드[{}] {} - {}ms", shardIdx, queryProfile.type(), timeMs)
+    private fun buildQuery(level: String, h3Indexes: List<Long>): Query {
+        return Query.of { q ->
+            q.bool { bool ->
+                bool.filter { f ->
+                    f.term { t -> t.field("level").value(level) }
+                }
+                bool.filter { f ->
+                    f.terms { t ->
+                        t.field("h3Index").terms { tv ->
+                            tv.value(h3Indexes.map { FieldValue.of(it) })
                         }
                     }
                 }
-            }
-
-            log.info("[LDRC] chunk {}/{}, h3={}, hits={}, ES took={}ms", idx + 1, cellChunks.size, chunk.size, hits.size, esTook)
-
-            hits.forEach { hit ->
-                @Suppress("UNCHECKED_CAST")
-                val source = hit.source() as? Map<String, Any> ?: return@forEach
-                results.add(LdrcDoc(
-                    code = source["code"]?.toString() ?: "",
-                    count = (source["count"] as? Number)?.toInt() ?: 0,
-                    sumLat = (source["sumLat"] as? Number)?.toDouble() ?: 0.0,
-                    sumLng = (source["sumLng"] as? Number)?.toDouble() ?: 0.0
-                ))
+                bool
             }
         }
-
-        return results
     }
 
-    private data class LdrcDoc(val code: String, val count: Int, val sumLat: Double, val sumLng: Double)
+    private fun getRegionName(level: String, code: Long): String {
+        return when (level) {
+            "SD" -> SIDO_NAMES[code] ?: "알 수 없음"
+            else -> code.toString() // 시군구/읍면동은 코드로 표시 (필요시 별도 매핑)
+        }
+    }
 }
 
-data class LdrcRegionData(
-    val code: String,
-    val name: String,
-    val cnt: Int,
-    val centerLat: Double,
-    val centerLng: Double
+data class LdrcResponse(
+    val level: String,
+    val h3Count: Int,
+    val clusters: List<LdrcCluster>,
+    val totalCount: Long,
+    val elapsedMs: Long
 )
 
-data class LdrcQueryResult(
-    val regions: List<LdrcRegionData>,
-    val totalCount: Int,
-    val elapsedMs: Long
+data class LdrcCluster(
+    val code: Long,
+    val name: String,
+    val count: Long,
+    val centerLat: Double,
+    val centerLng: Double
 )

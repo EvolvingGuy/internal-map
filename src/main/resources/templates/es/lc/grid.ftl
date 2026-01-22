@@ -449,7 +449,7 @@
                 .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
                 .join('&');
 
-            fetch('/api/lc/agg/grid?' + queryString)
+            fetch('/api/es/lc/agg/grid?' + queryString)
                 .then(res => res.json())
                 .then(data => {
                     document.getElementById('gridInfo').textContent = data.cols + ' x ' + data.rows;

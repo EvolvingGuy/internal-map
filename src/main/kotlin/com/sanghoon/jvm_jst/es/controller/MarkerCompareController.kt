@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*
  * Center Contains vs Intersects 비교 API
  */
 @RestController
-@RequestMapping("/api/markers-compare")
+@RequestMapping("/api/es/markers-compare")
 class MarkerCompareApiController(
     private val geoQueryService: LandCompactGeoQueryService,
     private val intersectQueryService: LandCompactIntersectQueryService
@@ -113,7 +113,7 @@ data class DiffResult(
  * 비교 페이지
  */
 @Controller
-@RequestMapping("/page/markers-compare")
+@RequestMapping("/page/es/markers-compare")
 class MarkerComparePageController(
     @Value("\${naver.map.client-id}") private val naverMapClientId: String
 ) {

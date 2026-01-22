@@ -16,7 +16,7 @@ import java.time.LocalDate
  * LC Aggregation API Controller
  */
 @RestController
-@RequestMapping("/api/lc/agg")
+@RequestMapping("/api/es/lc/agg")
 class LcAggApiController(
     private val aggService: LcAggregationService,
     private val gridAggService: LcGridAggregationService
@@ -285,7 +285,7 @@ class LcAggApiController(
  * LC Aggregation Page Controller
  */
 @Controller
-@RequestMapping("/page/lc/agg")
+@RequestMapping("/page/es/lc/agg")
 class LcAggPageController(
     @Value("\${naver.map.client-id}") private val naverMapClientId: String
 ) {
@@ -293,7 +293,7 @@ class LcAggPageController(
     fun pageSd(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
         model.addAttribute("title", "LC Aggregation - 시도")
-        model.addAttribute("apiPath", "/api/lc/agg/sd")
+        model.addAttribute("apiPath", "/api/es/lc/agg/sd")
         model.addAttribute("level", "SD")
         model.addAttribute("defaultZoom", 7)
         return "es/lc/agg"
@@ -303,7 +303,7 @@ class LcAggPageController(
     fun pageSgg(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
         model.addAttribute("title", "LC Aggregation - 시군구")
-        model.addAttribute("apiPath", "/api/lc/agg/sgg")
+        model.addAttribute("apiPath", "/api/es/lc/agg/sgg")
         model.addAttribute("level", "SGG")
         model.addAttribute("defaultZoom", 10)
         return "es/lc/agg"
@@ -313,7 +313,7 @@ class LcAggPageController(
     fun pageEmd(model: Model): String {
         model.addAttribute("naverMapClientId", naverMapClientId)
         model.addAttribute("title", "LC Aggregation - 읍면동")
-        model.addAttribute("apiPath", "/api/lc/agg/emd")
+        model.addAttribute("apiPath", "/api/es/lc/agg/emd")
         model.addAttribute("level", "EMD")
         model.addAttribute("defaultZoom", 14)
         return "es/lc/agg"

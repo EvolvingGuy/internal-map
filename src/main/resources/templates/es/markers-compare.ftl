@@ -107,20 +107,20 @@
     <div id="map"></div>
 
     <div id="info">
-        <h3>Center vs Intersect Compare</h3>
+        <h3>Center vs Intersect</h3>
         <div class="row">
-            <span class="label">Zoom Level</span>
+            <span class="label">Zoom</span>
             <span class="value" id="zoomLevel">-</span>
         </div>
 
         <div class="section center">
-            <div class="section-title">Center Contains (geo_bounding_box)</div>
+            <div class="section-title">Center</div>
             <div class="row">
                 <span class="label">Count</span>
                 <span class="value" id="centerCount">-</span>
             </div>
             <div class="row">
-                <span class="label">Elapsed</span>
+                <span class="label">Time</span>
                 <span class="value" id="centerElapsed">-</span>
             </div>
             <div class="row">
@@ -130,13 +130,13 @@
         </div>
 
         <div class="section intersect">
-            <div class="section-title">Intersect (geo_shape)</div>
+            <div class="section-title">Intersect</div>
             <div class="row">
                 <span class="label">Count</span>
                 <span class="value" id="intersectCount">-</span>
             </div>
             <div class="row">
-                <span class="label">Elapsed</span>
+                <span class="label">Time</span>
                 <span class="value" id="intersectElapsed">-</span>
             </div>
             <div class="row">
@@ -180,11 +180,11 @@
         <div class="legend">
             <div class="legend-item">
                 <div class="legend-color common"></div>
-                <span>Common (both)</span>
+                <span>Common</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color only-center"></div>
-                <span>Only Center (NW offset)</span>
+                <span>Only Center (NW)</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color only-intersect"></div>
@@ -193,7 +193,7 @@
         </div>
     </div>
 
-    <div id="zoom-warning">줌 레벨 17 이상에서만 조회됩니다</div>
+    <div id="zoom-warning">Zoom 17+</div>
 
     <script>
         const MIN_ZOOM = 17;
@@ -210,7 +210,6 @@
             onlyIntersect: []
         };
 
-        // 오프셋 (북서 방향으로 이동)
         const NW_OFFSET_LAT = 0.00015;
         const NW_OFFSET_LNG = -0.00015;
 
@@ -294,28 +293,23 @@
                 neLat: ne.lat()
             });
 
-            // 로딩 표시
             document.getElementById('centerCount').textContent = '...';
             document.getElementById('intersectCount').textContent = '...';
 
-            fetch('/api/markers-compare?' + params.toString())
+            fetch('/api/es/markers-compare?' + params.toString())
                 .then(res => res.json())
                 .then(data => {
-                    // 각 items 크기 계산
                     const centerBytes = new Blob([JSON.stringify(data.center.items)]).size;
                     const intersectBytes = new Blob([JSON.stringify(data.intersect.items)]).size;
 
-                    // Center
                     document.getElementById('centerCount').textContent = data.center.count.toLocaleString();
                     document.getElementById('centerElapsed').textContent = data.center.elapsedMs + 'ms';
                     document.getElementById('centerSize').textContent = formatSize(centerBytes);
 
-                    // Intersect
                     document.getElementById('intersectCount').textContent = data.intersect.count.toLocaleString();
                     document.getElementById('intersectElapsed').textContent = data.intersect.elapsedMs + 'ms';
                     document.getElementById('intersectSize').textContent = formatSize(intersectBytes);
 
-                    // Compare
                     const fasterEl = document.getElementById('fasterMethod');
                     if (data.faster === 'center') {
                         fasterEl.innerHTML = '<span class="faster">Center</span>';
@@ -326,26 +320,17 @@
                     }
                     document.getElementById('timeDiff').textContent = data.timeDiff + 'ms';
 
-                    // Size diff
                     const sizeDiffBytes = Math.abs(centerBytes - intersectBytes);
                     const smaller = centerBytes < intersectBytes ? 'Center' : (intersectBytes < centerBytes ? 'Intersect' : 'Same');
                     document.getElementById('sizeDiff').textContent = formatSize(sizeDiffBytes) + ' (' + smaller + ' smaller)';
 
-                    // Diff
                     document.getElementById('diffCommon').textContent = data.diff.common.toLocaleString();
                     document.getElementById('diffOnlyCenter').textContent = data.diff.onlyCenter.toLocaleString();
                     document.getElementById('diffOnlyIntersect').textContent = data.diff.onlyIntersect.toLocaleString();
 
-                    // Draw polygons
                     clearPolygons();
-
-                    // Common: 보라색
                     drawPolygons(data.diff.commonItems, 'common', '#a855f7');
-
-                    // Only Center: 파란색, 북서쪽으로 오프셋
                     drawPolygons(data.diff.onlyCenterItems, 'onlyCenter', '#3b82f6', NW_OFFSET_LAT, NW_OFFSET_LNG);
-
-                    // Only Intersect: 초록색
                     drawPolygons(data.diff.onlyIntersectItems, 'onlyIntersect', '#22c55e');
                 })
                 .catch(err => {

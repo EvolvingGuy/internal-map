@@ -474,7 +474,7 @@
             const queryString = buildParams();
 
             // Type 1 호출 (폴리곤도 같이 그림)
-            fetch('/api/markers/type1?' + queryString)
+            fetch('/api/es/markers/type1?' + queryString)
                 .then(res => res.text())
                 .then(text => {
                     const bytes = new Blob([text]).size;
@@ -488,7 +488,7 @@
                 .catch(err => console.error('type1 error:', err));
 
             // Type 2 호출
-            fetch('/api/markers/type2?' + queryString)
+            fetch('/api/es/markers/type2?' + queryString)
                 .then(res => res.text())
                 .then(text => {
                     const bytes = new Blob([text]).size;
