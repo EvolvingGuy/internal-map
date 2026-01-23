@@ -6,7 +6,11 @@ import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery
 import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket
 import co.elastic.clients.json.JsonData
 import com.datahub.geo_poc.es.document.land.LandCompactDocument
-import com.datahub.geo_poc.model.*
+import com.datahub.geo_poc.model.BBoxRequest
+import com.datahub.geo_poc.model.GridParamsRequest
+import com.datahub.geo_poc.model.LcAggFilter
+import com.datahub.geo_poc.model.LcGridCell
+import com.datahub.geo_poc.model.LcGridAggResponse
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.LocalDate
@@ -27,21 +31,21 @@ class LcGridAggregationService(
         const val MAX_GRID_CELLS = 500  // 최대 그리드 셀 수
     }
 
-    fun aggregate(request: LcGridAggRequest, filter: LcAggFilter = LcAggFilter()): LcGridAggResponse {
+    fun aggregate(bbox: BBoxRequest, gridParams: GridParamsRequest, filter: LcAggFilter = LcAggFilter()): LcGridAggResponse {
         val startTime = System.currentTimeMillis()
 
         // 그리드 계산
-        val cols = ceil(request.viewportWidth.toDouble() / request.gridSize).toInt()
-        val rows = ceil(request.viewportHeight.toDouble() / request.gridSize).toInt()
-        val cellLng = (request.neLng - request.swLng) / cols
-        val cellLat = (request.neLat - request.swLat) / rows
+        val cols = ceil(gridParams.viewportWidth.toDouble() / gridParams.gridSize).toInt()
+        val rows = ceil(gridParams.viewportHeight.toDouble() / gridParams.gridSize).toInt()
+        val cellLng = (bbox.neLng - bbox.swLng) / cols
+        val cellLat = (bbox.neLat - bbox.swLat) / rows
 
         log.info("[LC Grid] cols={}, rows={}, cellLng={}, cellLat={}", cols, rows, cellLng, cellLat)
 
         // envelope GeoJSON: [[left, top], [right, bottom]]
         val envelopeJson = mapOf(
             "type" to "envelope",
-            "coordinates" to listOf(listOf(request.swLng, request.neLat), listOf(request.neLng, request.swLat))
+            "coordinates" to listOf(listOf(bbox.swLng, bbox.neLat), listOf(bbox.neLng, bbox.swLat))
         )
 
         // ES scripted terms aggregation
@@ -78,8 +82,8 @@ class LcGridAggregationService(
                 }
                 .aggregations("grid") { agg ->
                     val scriptParams = mapOf(
-                        "minLng" to co.elastic.clients.json.JsonData.of(request.swLng),
-                        "minLat" to co.elastic.clients.json.JsonData.of(request.swLat),
+                        "minLng" to co.elastic.clients.json.JsonData.of(bbox.swLng),
+                        "minLat" to co.elastic.clients.json.JsonData.of(bbox.swLat),
                         "cellLng" to co.elastic.clients.json.JsonData.of(cellLng),
                         "cellLat" to co.elastic.clients.json.JsonData.of(cellLat),
                         "cols" to co.elastic.clients.json.JsonData.of(cols),

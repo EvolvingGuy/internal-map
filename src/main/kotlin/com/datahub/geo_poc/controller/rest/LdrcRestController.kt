@@ -3,6 +3,7 @@ package com.datahub.geo_poc.controller.rest
 import com.datahub.geo_poc.es.service.LdrcIndexingService
 import com.datahub.geo_poc.es.service.LdrcQueryService
 import com.datahub.geo_poc.es.model.LdrcResponse
+import com.datahub.geo_poc.model.BBoxRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -93,10 +94,7 @@ class LdrcRestController(
      */
     @GetMapping("/clusters")
     fun getClusters(
-        @RequestParam swLng: Double,
-        @RequestParam swLat: Double,
-        @RequestParam neLng: Double,
-        @RequestParam neLat: Double,
+        @ModelAttribute bbox: BBoxRequest,
         @RequestParam(defaultValue = "SD") level: String,
         @RequestParam(defaultValue = "10") zoom: Int
     ): ResponseEntity<LdrcResponse> {
@@ -119,7 +117,7 @@ class LdrcRestController(
 
         val scale = ZOOM_SCALE[zoom] ?: "?"
         log.info("[LDRC] 조회: level={}, zoom={} ({})", upperLevel, zoom, scale)
-        val response = queryService.queryByBBox(swLng, swLat, neLng, neLat, upperLevel)
+        val response = queryService.queryByBBox(bbox.swLng, bbox.swLat, bbox.neLng, bbox.neLat, upperLevel)
         return ResponseEntity.ok(response)
     }
 

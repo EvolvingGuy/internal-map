@@ -6,9 +6,9 @@ import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery
 import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket
 import co.elastic.clients.json.JsonData
 import com.datahub.geo_poc.es.document.land.LandCompactDocument
+import com.datahub.geo_poc.model.BBoxRequest
 import com.datahub.geo_poc.model.LcAggFilter
 import com.datahub.geo_poc.model.LcAggRegion
-import com.datahub.geo_poc.model.LcAggRequest
 import com.datahub.geo_poc.model.LcAggResponse
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -31,25 +31,25 @@ class LcAggregationService(
         const val EMD_SIZE = 5000   // 읍면동 최대 개수
     }
 
-    fun aggregateBySd(request: LcAggRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
-        return aggregate("sd", SD_SIZE, request, filter)
+    fun aggregateBySd(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
+        return aggregate("sd", SD_SIZE, bbox, filter)
     }
 
-    fun aggregateBySgg(request: LcAggRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
-        return aggregate("sgg", SGG_SIZE, request, filter)
+    fun aggregateBySgg(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
+        return aggregate("sgg", SGG_SIZE, bbox, filter)
     }
 
-    fun aggregateByEmd(request: LcAggRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
-        return aggregate("emd", EMD_SIZE, request, filter)
+    fun aggregateByEmd(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
+        return aggregate("emd", EMD_SIZE, bbox, filter)
     }
 
-    private fun aggregate(field: String, size: Int, request: LcAggRequest, filter: LcAggFilter): LcAggResponse {
+    private fun aggregate(field: String, size: Int, bbox: BBoxRequest, filter: LcAggFilter): LcAggResponse {
         val startTime = System.currentTimeMillis()
 
         // envelope GeoJSON: [[left, top], [right, bottom]]
         val envelopeJson = mapOf(
             "type" to "envelope",
-            "coordinates" to listOf(listOf(request.swLng, request.neLat), listOf(request.neLng, request.swLat))
+            "coordinates" to listOf(listOf(bbox.swLng, bbox.neLat), listOf(bbox.neLng, bbox.swLat))
         )
 
         val response = esClient.search({ s ->

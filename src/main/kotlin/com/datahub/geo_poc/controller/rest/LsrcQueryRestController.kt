@@ -2,6 +2,7 @@ package com.datahub.geo_poc.controller.rest
 
 import com.datahub.geo_poc.es.model.LsrcQueryResponse
 import com.datahub.geo_poc.es.service.LsrcQueryService
+import com.datahub.geo_poc.model.BBoxRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -18,13 +19,8 @@ class LsrcQueryRestController(
      * GET /api/es/lsrc/query/sd?swLng=...&swLat=...&neLng=...&neLat=...
      */
     @GetMapping("/sd")
-    fun querySd(
-        @RequestParam swLng: Double,
-        @RequestParam swLat: Double,
-        @RequestParam neLng: Double,
-        @RequestParam neLat: Double
-    ): ResponseEntity<LsrcQueryResponse> {
-        val result = queryService.findByBbox("SD", swLng, swLat, neLng, neLat)
+    fun querySd(@ModelAttribute bbox: BBoxRequest): ResponseEntity<LsrcQueryResponse> {
+        val result = queryService.findByBbox("SD", bbox.swLng, bbox.swLat, bbox.neLng, bbox.neLat)
         return ResponseEntity.ok(result)
     }
 
@@ -33,13 +29,8 @@ class LsrcQueryRestController(
      * GET /api/es/lsrc/query/sgg?swLng=...&swLat=...&neLng=...&neLat=...
      */
     @GetMapping("/sgg")
-    fun querySgg(
-        @RequestParam swLng: Double,
-        @RequestParam swLat: Double,
-        @RequestParam neLng: Double,
-        @RequestParam neLat: Double
-    ): ResponseEntity<LsrcQueryResponse> {
-        val result = queryService.findByBbox("SGG", swLng, swLat, neLng, neLat)
+    fun querySgg(@ModelAttribute bbox: BBoxRequest): ResponseEntity<LsrcQueryResponse> {
+        val result = queryService.findByBbox("SGG", bbox.swLng, bbox.swLat, bbox.neLng, bbox.neLat)
         return ResponseEntity.ok(result)
     }
 
@@ -48,13 +39,8 @@ class LsrcQueryRestController(
      * GET /api/es/lsrc/query/emd?swLng=...&swLat=...&neLng=...&neLat=...
      */
     @GetMapping("/emd")
-    fun queryEmd(
-        @RequestParam swLng: Double,
-        @RequestParam swLat: Double,
-        @RequestParam neLng: Double,
-        @RequestParam neLat: Double
-    ): ResponseEntity<LsrcQueryResponse> {
-        val result = queryService.findByBbox("EMD", swLng, swLat, neLng, neLat)
+    fun queryEmd(@ModelAttribute bbox: BBoxRequest): ResponseEntity<LsrcQueryResponse> {
+        val result = queryService.findByBbox("EMD", bbox.swLng, bbox.swLat, bbox.neLng, bbox.neLat)
         return ResponseEntity.ok(result)
     }
 }

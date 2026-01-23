@@ -1,16 +1,17 @@
 package com.datahub.geo_poc.model
 
+import org.springframework.format.annotation.DateTimeFormat
 import java.math.BigDecimal
 import java.time.LocalDate
 
 /**
- * LC Aggregation 요청
+ * 공통 BBox 요청 파라미터
  */
-data class LcAggRequest(
-    val swLng: Double,
-    val swLat: Double,
-    val neLng: Double,
-    val neLat: Double
+data class BBoxRequest(
+    val swLng: Double = 0.0,
+    val swLat: Double = 0.0,
+    val neLng: Double = 0.0,
+    val neLat: Double = 0.0
 )
 
 /**
@@ -102,19 +103,6 @@ data class LcAggResponse(
 )
 
 /**
- * LC Grid Aggregation 요청
- */
-data class LcGridAggRequest(
-    val swLng: Double,
-    val swLat: Double,
-    val neLng: Double,
-    val neLat: Double,
-    val viewportWidth: Int,
-    val viewportHeight: Int,
-    val gridSize: Int = 400
-)
-
-/**
  * LC Grid 셀 아이템
  */
 data class LcGridCell(
@@ -136,3 +124,81 @@ data class LcGridAggResponse(
     val cells: List<LcGridCell>,
     val elapsedMs: Long
 )
+
+/**
+ * Grid 파라미터 요청
+ */
+data class GridParamsRequest(
+    val viewportWidth: Int = 0,
+    val viewportHeight: Int = 0,
+    val gridSize: Int = 400
+)
+
+/**
+ * LC Aggregation 필터 요청 (쿼리 파라미터 바인딩용)
+ * 콤마 구분 문자열로 받아서 toFilter()로 LcAggFilter 변환
+ */
+data class LcAggFilterRequest(
+    // Building
+    val buildingMainPurpsCdNm: String? = null,
+    val buildingRegstrGbCdNm: String? = null,
+    val buildingPmsDayRecent5y: Boolean? = null,
+    val buildingStcnsDayRecent5y: Boolean? = null,
+    val buildingUseAprDayStart: Int? = null,
+    val buildingUseAprDayEnd: Int? = null,
+    val buildingTotAreaMin: BigDecimal? = null,
+    val buildingTotAreaMax: BigDecimal? = null,
+    val buildingPlatAreaMin: BigDecimal? = null,
+    val buildingPlatAreaMax: BigDecimal? = null,
+    val buildingArchAreaMin: BigDecimal? = null,
+    val buildingArchAreaMax: BigDecimal? = null,
+    // Land
+    val landJiyukCd1: String? = null,
+    val landJimokCd: String? = null,
+    val landAreaMin: Double? = null,
+    val landAreaMax: Double? = null,
+    val landPriceMin: Long? = null,
+    val landPriceMax: Long? = null,
+    // Trade
+    val tradeProperty: String? = null,
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    val tradeContractDateStart: LocalDate? = null,
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    val tradeContractDateEnd: LocalDate? = null,
+    val tradeEffectiveAmountMin: Long? = null,
+    val tradeEffectiveAmountMax: Long? = null,
+    val tradeBuildingAmountPerM2Min: BigDecimal? = null,
+    val tradeBuildingAmountPerM2Max: BigDecimal? = null,
+    val tradeLandAmountPerM2Min: BigDecimal? = null,
+    val tradeLandAmountPerM2Max: BigDecimal? = null
+) {
+    fun toFilter(): LcAggFilter = LcAggFilter(
+        buildingMainPurpsCdNm = buildingMainPurpsCdNm?.split(",")?.filter { it.isNotBlank() },
+        buildingRegstrGbCdNm = buildingRegstrGbCdNm?.split(",")?.filter { it.isNotBlank() },
+        buildingPmsDayRecent5y = buildingPmsDayRecent5y,
+        buildingStcnsDayRecent5y = buildingStcnsDayRecent5y,
+        buildingUseAprDayStart = buildingUseAprDayStart,
+        buildingUseAprDayEnd = buildingUseAprDayEnd,
+        buildingTotAreaMin = buildingTotAreaMin,
+        buildingTotAreaMax = buildingTotAreaMax,
+        buildingPlatAreaMin = buildingPlatAreaMin,
+        buildingPlatAreaMax = buildingPlatAreaMax,
+        buildingArchAreaMin = buildingArchAreaMin,
+        buildingArchAreaMax = buildingArchAreaMax,
+        landJiyukCd1 = landJiyukCd1?.split(",")?.filter { it.isNotBlank() },
+        landJimokCd = landJimokCd?.split(",")?.filter { it.isNotBlank() },
+        landAreaMin = landAreaMin,
+        landAreaMax = landAreaMax,
+        landPriceMin = landPriceMin,
+        landPriceMax = landPriceMax,
+        tradeProperty = tradeProperty?.split(",")?.filter { it.isNotBlank() },
+        tradeContractDateStart = tradeContractDateStart,
+        tradeContractDateEnd = tradeContractDateEnd,
+        tradeEffectiveAmountMin = tradeEffectiveAmountMin,
+        tradeEffectiveAmountMax = tradeEffectiveAmountMax,
+        tradeBuildingAmountPerM2Min = tradeBuildingAmountPerM2Min,
+        tradeBuildingAmountPerM2Max = tradeBuildingAmountPerM2Max,
+        tradeLandAmountPerM2Min = tradeLandAmountPerM2Min,
+        tradeLandAmountPerM2Max = tradeLandAmountPerM2Max
+    )
+}

@@ -28,7 +28,6 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-freemarker")
-    implementation("org.freemarker:freemarker:2.3.34")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     // Kotlin 클래스 직렬화 지원 (data class, nullable 등)
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
@@ -38,7 +37,6 @@ dependencies {
     implementation("org.locationtech.jts:jts-core:1.20.0")
     implementation("org.hibernate.orm:hibernate-spatial")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.apache.commons:commons-csv:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
     implementation("com.uber:h3:4.1.1")
 }
