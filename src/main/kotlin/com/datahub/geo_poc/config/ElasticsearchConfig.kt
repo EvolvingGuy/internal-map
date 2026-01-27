@@ -1,43 +1,68 @@
 package com.datahub.geo_poc.config
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.json.jackson.JacksonJsonpMapper
-import co.elastic.clients.transport.rest_client.RestClientTransport
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import org.apache.http.HttpHost
+import org.apache.http.auth.AuthScope
+import org.apache.http.auth.UsernamePasswordCredentials
 import org.apache.http.client.config.RequestConfig
-import org.elasticsearch.client.RestClient
+import org.apache.http.conn.ssl.NoopHostnameVerifier
+import org.apache.http.impl.client.BasicCredentialsProvider
+import org.apache.http.ssl.SSLContextBuilder
+import org.opensearch.client.RestClient
+import org.opensearch.client.json.jackson.JacksonJsonpMapper
+import org.opensearch.client.opensearch.OpenSearchClient
+import org.opensearch.client.transport.rest_client.RestClientTransport
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 @Configuration
 class ElasticsearchConfig(
-    @Value("\${spring.elasticsearch.uris}") private val esUri: String
+    @Value("\${spring.elasticsearch.uris}") private val esUri: String,
+    @Value("\${spring.elasticsearch.username:}") private val username: String,
+    @Value("\${spring.elasticsearch.password:}") private val password: String
 ) {
     @Bean
-    fun elasticsearchClient(): ElasticsearchClient {
+    fun openSearchClient(): OpenSearchClient {
         val uri = java.net.URI.create(esUri)
-        val restClient = RestClient.builder(
+
+        val restClientBuilder = RestClient.builder(
             HttpHost(uri.host, uri.port, uri.scheme)
         ).setHttpClientConfigCallback { httpClientBuilder ->
+            // Basic Auth 설정 (username/password가 있을 경우)
+            if (username.isNotBlank() && password.isNotBlank()) {
+                val credentialsProvider = BasicCredentialsProvider().apply {
+                    setCredentials(AuthScope.ANY, UsernamePasswordCredentials(username, password))
+                }
+                httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider)
+            }
+
+            // HTTPS 시 SSL 호스트명 검증 비활성화 (SSH 터널링용)
+            if (uri.scheme == "https") {
+                val sslContext = SSLContextBuilder.create()
+                    .loadTrustMaterial { _, _ -> true }
+                    .build()
+                httpClientBuilder
+                    .setSSLContext(sslContext)
+                    .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
+            }
+
             httpClientBuilder
-                // 커넥션 풀: 30개로 제한하여 소켓 재사용
                 .setMaxConnTotal(30)
                 .setMaxConnPerRoute(30)
-                // Keep-Alive: 30초 유지 (소켓이 매번 닫히는 것 방지)
                 .setKeepAliveStrategy { _, _ -> 30 * 1000L }
-                // 타임아웃 설정
                 .setDefaultRequestConfig(
                     RequestConfig.custom()
                         .setConnectTimeout(5000)
                         .setSocketTimeout(60000)
                         .build()
                 )
-        }.build()
+        }
+
+        val restClient = restClientBuilder.build()
 
         val objectMapper = ObjectMapper().apply {
             registerModule(JavaTimeModule())
@@ -46,6 +71,6 @@ class ElasticsearchConfig(
         }
 
         val transport = RestClientTransport(restClient, JacksonJsonpMapper(objectMapper))
-        return ElasticsearchClient(transport)
+        return OpenSearchClient(transport)
     }
 }

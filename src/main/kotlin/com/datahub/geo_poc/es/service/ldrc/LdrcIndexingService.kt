@@ -1,8 +1,8 @@
 package com.datahub.geo_poc.es.service.ldrc
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch.core.BulkRequest
-import co.elastic.clients.elasticsearch.core.bulk.BulkOperation
+import org.opensearch.client.opensearch.OpenSearchClient
+import org.opensearch.client.opensearch.core.BulkRequest
+import org.opensearch.client.opensearch.core.bulk.BulkOperation
 import com.datahub.geo_poc.es.document.cluster.LdrcDocument
 import com.datahub.geo_poc.jpa.repository.PnuAggEmd10Repository
 import com.uber.h3core.H3Core
@@ -15,7 +15,7 @@ import java.util.Locale
 @Service
 class LdrcIndexingService(
     private val emd10Repository: PnuAggEmd10Repository,
-    private val esClient: ElasticsearchClient
+    private val esClient: OpenSearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val h3 = H3Core.newInstance()
@@ -86,7 +86,7 @@ class LdrcIndexingService(
         esClient.indices().forcemerge { f ->
             f.index(INDEX_NAME)
                 .maxNumSegments(1L)
-                .waitForCompletion(false)
+                
         }
         log.info("[LDRC] Forcemerge 요청 완료 (백그라운드 실행 중)")
 
@@ -181,7 +181,7 @@ class LdrcIndexingService(
         log.info("[LDRC] {} ES Aggregation 시작: {} + {} 기준", targetLevel, h3Field, regionField)
 
         // Composite aggregation으로 페이징하며 집계
-        var afterKey: Map<String, co.elastic.clients.elasticsearch._types.FieldValue>? = null
+        var afterKey: Map<String, String>? = null
         var totalBuckets = 0
         var batchCount = 0
 
@@ -192,15 +192,15 @@ class LdrcIndexingService(
             val response = esClient.search({ s ->
                 s.index(INDEX_NAME)
                     .size(0)
-                    .query { q -> q.term { t -> t.field("level").value("EMD") } }
+                    .query { q -> q.term { t -> t.field("level").value(org.opensearch.client.opensearch._types.FieldValue.of("EMD")) } }
                     .aggregations("composite_agg") { a ->
                         a.composite { c ->
                             c.size(10000)
                                 .sources(listOf(
-                                    mapOf("h3" to co.elastic.clients.elasticsearch._types.aggregations.CompositeAggregationSource.of { src ->
+                                    mapOf("h3" to org.opensearch.client.opensearch._types.aggregations.CompositeAggregationSource.of { src ->
                                         src.terms { t -> t.field(h3Field) }
                                     }),
-                                    mapOf("region" to co.elastic.clients.elasticsearch._types.aggregations.CompositeAggregationSource.of { src ->
+                                    mapOf("region" to org.opensearch.client.opensearch._types.aggregations.CompositeAggregationSource.of { src ->
                                         src.terms { t -> t.field(regionField) }
                                     })
                                 ))
@@ -223,8 +223,8 @@ class LdrcIndexingService(
             if (buckets.isEmpty()) break
 
             for (bucket in buckets) {
-                val h3Index = bucket.key()["h3"]?.longValue() ?: continue
-                val regionCode = bucket.key()["region"]?.longValue() ?: continue
+                val h3Index = bucket.key()["h3"]?.toString()?.toLongOrNull() ?: continue
+                val regionCode = bucket.key()["region"]?.toString()?.toLongOrNull() ?: continue
                 val cnt = bucket.aggregations()["sum_cnt"]?.sum()?.value()?.toInt() ?: 0
                 val sumLat = bucket.aggregations()["sum_lat"]?.sum()?.value() ?: 0.0
                 val sumLng = bucket.aggregations()["sum_lng"]?.sum()?.value() ?: 0.0
@@ -248,7 +248,7 @@ class LdrcIndexingService(
                 formatCount(totalBuckets), formatElapsed(batchTime), formatElapsed(elapsed))
 
             // 다음 페이지
-            afterKey = compositeAgg.afterKey()
+            afterKey = compositeAgg.afterKey()?.mapValues { it.value.toString() }
             if (afterKey == null || buckets.size < 10000) break
         }
 
@@ -443,7 +443,7 @@ class LdrcIndexingService(
         esClient.indices().forcemerge { f ->
             f.index(INDEX_NAME)
                 .maxNumSegments(1L)
-                .waitForCompletion(false)
+                
         }
         log.info("[LDRC] Forcemerge 요청 완료 (백그라운드 실행 중)")
 

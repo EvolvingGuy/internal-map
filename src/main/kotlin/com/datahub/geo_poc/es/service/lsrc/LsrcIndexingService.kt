@@ -1,8 +1,8 @@
 package com.datahub.geo_poc.es.service.lsrc
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch.core.BulkRequest
-import co.elastic.clients.elasticsearch.core.bulk.BulkOperation
+import org.opensearch.client.opensearch.OpenSearchClient
+import org.opensearch.client.opensearch.core.BulkRequest
+import org.opensearch.client.opensearch.core.bulk.BulkOperation
 import com.datahub.geo_poc.es.document.cluster.LsrcDocument
 import com.datahub.geo_poc.jpa.repository.LandCharacteristicRepository
 import com.datahub.geo_poc.jpa.repository.BoundaryRegionRepository
@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service
 class LsrcIndexingService(
     private val landCharRepo: LandCharacteristicRepository,
     private val boundaryRegionRepo: BoundaryRegionRepository,
-    private val esClient: ElasticsearchClient
+    private val esClient: OpenSearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 

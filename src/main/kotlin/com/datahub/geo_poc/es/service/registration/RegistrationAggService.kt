@@ -1,7 +1,8 @@
 package com.datahub.geo_poc.es.service.registration
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch._types.FieldValue
+import org.opensearch.client.json.JsonData
+import org.opensearch.client.opensearch.OpenSearchClient
+import org.opensearch.client.opensearch._types.FieldValue
 import com.datahub.geo_poc.es.document.registration.RegistrationDocument
 import com.datahub.geo_poc.model.RegistrationAgg
 import org.slf4j.LoggerFactory
@@ -16,7 +17,7 @@ import java.time.format.DateTimeFormatter
  */
 @Service
 class RegistrationAggService(
-    private val esClient: ElasticsearchClient
+    private val esClient: OpenSearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -60,14 +61,14 @@ class RegistrationAggService(
                         if (minCreatedDate != null) {
                             bool.filter { f ->
                                 f.range { r ->
-                                    r.date { d -> d.field("createdAt").gte(minCreatedDate.toString()) }
+                                    r.field("createdAt").gte(JsonData.of(minCreatedDate.toString()))
                                 }
                             }
                         }
                         if (maxCreatedDate != null) {
                             bool.filter { f ->
                                 f.range { r ->
-                                    r.date { d -> d.field("createdAt").lte(maxCreatedDate.toString()) }
+                                    r.field("createdAt").lte(JsonData.of(maxCreatedDate.toString()))
                                 }
                             }
                         }
@@ -81,13 +82,13 @@ class RegistrationAggService(
                         }
                         .aggregations("my_filter") { subAgg ->
                             if (userId != null) {
-                                subAgg.filter { f -> f.term { t -> t.field("userId").value(userId) } }
+                                subAgg.filter { f -> f.term { t -> t.field("userId").value(org.opensearch.client.opensearch._types.FieldValue.of(userId)) } }
                                     .aggregations("myLastAt") { mySubAgg ->
                                         mySubAgg.max { m -> m.field("createdAt") }
                                     }
                             } else {
                                 // userId 없으면 빈 필터 (매칭 없음)
-                                subAgg.filter { f -> f.term { t -> t.field("userId").value(-1L) } }
+                                subAgg.filter { f -> f.term { t -> t.field("userId").value(org.opensearch.client.opensearch._types.FieldValue.of(-1L)) } }
                             }
                         }
                 }
@@ -97,7 +98,7 @@ class RegistrationAggService(
         val buckets = response.aggregations()["by_pnu"]?.sterms()?.buckets()?.array() ?: emptyList()
 
         val result = buckets.associate { bucket ->
-            val pnuId = bucket.key().stringValue()
+            val pnuId = bucket.key()
             val count = bucket.docCount().toInt()
             val lastAtValue = bucket.aggregations()["lastAt"]?.max()?.valueAsString()
             val lastAt = parseDateTime(lastAtValue)
@@ -157,14 +158,14 @@ class RegistrationAggService(
                         if (minCreatedDate != null) {
                             bool.filter { f ->
                                 f.range { r ->
-                                    r.date { d -> d.field("createdAt").gte(minCreatedDate.toString()) }
+                                    r.field("createdAt").gte(JsonData.of(minCreatedDate.toString()))
                                 }
                             }
                         }
                         if (maxCreatedDate != null) {
                             bool.filter { f ->
                                 f.range { r ->
-                                    r.date { d -> d.field("createdAt").lte(maxCreatedDate.toString()) }
+                                    r.field("createdAt").lte(JsonData.of(maxCreatedDate.toString()))
                                 }
                             }
                         }
@@ -178,7 +179,7 @@ class RegistrationAggService(
         logProfile(response, "bbox")
 
         val buckets = response.aggregations()["pnu_ids"]?.sterms()?.buckets()?.array() ?: emptyList()
-        val pnuIds = buckets.map { it.key().stringValue() }.toSet()
+        val pnuIds = buckets.map { it.key() }.toSet()
 
         val elapsed = System.currentTimeMillis() - startTime
         log.info("[RegistrationAgg] bbox pnuIds={}, elapsed={}ms", pnuIds.size, elapsed)
@@ -200,7 +201,7 @@ class RegistrationAggService(
         }
     }
 
-    private fun logProfile(response: co.elastic.clients.elasticsearch.core.SearchResponse<Void>, queryType: String) {
+    private fun logProfile(response: org.opensearch.client.opensearch.core.SearchResponse<Void>, queryType: String) {
         val profile = response.profile() ?: return
         val shards = profile.shards()
 

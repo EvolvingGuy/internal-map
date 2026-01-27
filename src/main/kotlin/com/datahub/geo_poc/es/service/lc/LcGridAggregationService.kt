@@ -1,10 +1,10 @@
 package com.datahub.geo_poc.es.service.lc
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch._types.GeoShapeRelation
-import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery
-import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket
-import co.elastic.clients.json.JsonData
+import org.opensearch.client.opensearch.OpenSearchClient
+import org.opensearch.client.opensearch._types.GeoShapeRelation
+import org.opensearch.client.opensearch._types.query_dsl.BoolQuery
+import org.opensearch.client.opensearch._types.aggregations.StringTermsBucket
+import org.opensearch.client.json.JsonData
 import com.datahub.geo_poc.es.document.land.LandCompactDocument
 import com.datahub.geo_poc.model.BBoxRequest
 import com.datahub.geo_poc.model.GridParamsRequest
@@ -22,7 +22,7 @@ import kotlin.math.ceil
  */
 @Service
 class LcGridAggregationService(
-    private val esClient: ElasticsearchClient
+    private val esClient: OpenSearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -82,17 +82,16 @@ class LcGridAggregationService(
                 }
                 .aggregations("grid") { agg ->
                     val scriptParams = mapOf(
-                        "minLng" to co.elastic.clients.json.JsonData.of(bbox.swLng),
-                        "minLat" to co.elastic.clients.json.JsonData.of(bbox.swLat),
-                        "cellLng" to co.elastic.clients.json.JsonData.of(cellLng),
-                        "cellLat" to co.elastic.clients.json.JsonData.of(cellLat),
-                        "cols" to co.elastic.clients.json.JsonData.of(cols),
-                        "rows" to co.elastic.clients.json.JsonData.of(rows)
+                        "minLng" to org.opensearch.client.json.JsonData.of(bbox.swLng),
+                        "minLat" to org.opensearch.client.json.JsonData.of(bbox.swLat),
+                        "cellLng" to org.opensearch.client.json.JsonData.of(cellLng),
+                        "cellLat" to org.opensearch.client.json.JsonData.of(cellLat),
+                        "cols" to org.opensearch.client.json.JsonData.of(cols),
+                        "rows" to org.opensearch.client.json.JsonData.of(rows)
                     )
                     agg.terms { t ->
                         t.script { s ->
-                            s.params(scriptParams)
-                                .source(script)
+                            s.inline { i -> i.source(script).params(scriptParams) }
                         }.size(MAX_GRID_CELLS)
                     }.aggregations("center") { subAgg ->
                         subAgg.geoCentroid { gc -> gc.field("land.center") }
@@ -121,7 +120,7 @@ class LcGridAggregationService(
     }
 
     private fun toGridCell(bucket: StringTermsBucket): LcGridCell {
-        val key = bucket.key().stringValue()
+        val key = bucket.key()
         val parts = key.split("_")
         val gridX = parts[0].toInt()
         val gridY = parts[1].toInt()
@@ -140,95 +139,95 @@ class LcGridAggregationService(
     private fun applyFilters(bool: BoolQuery.Builder, filter: LcAggFilter) {
         // Building filters
         if (!filter.buildingMainPurpsCdNm.isNullOrEmpty()) {
-            bool.filter { f -> f.terms { t -> t.field("building.mainPurpsCdNm").terms { tv -> tv.value(filter.buildingMainPurpsCdNm.map { co.elastic.clients.elasticsearch._types.FieldValue.of(it) }) } } }
+            bool.filter { f -> f.terms { t -> t.field("building.mainPurpsCdNm").terms { tv -> tv.value(filter.buildingMainPurpsCdNm.map { org.opensearch.client.opensearch._types.FieldValue.of(it) }) } } }
         }
         if (!filter.buildingRegstrGbCdNm.isNullOrEmpty()) {
-            bool.filter { f -> f.terms { t -> t.field("building.regstrGbCdNm").terms { tv -> tv.value(filter.buildingRegstrGbCdNm.map { co.elastic.clients.elasticsearch._types.FieldValue.of(it) }) } } }
+            bool.filter { f -> f.terms { t -> t.field("building.regstrGbCdNm").terms { tv -> tv.value(filter.buildingRegstrGbCdNm.map { org.opensearch.client.opensearch._types.FieldValue.of(it) }) } } }
         }
         if (filter.buildingPmsDayRecent5y == true) {
             val fiveYearsAgo = LocalDate.now().minusYears(5)
-            bool.filter { f -> f.range { r -> r.date { d -> d.field("building.pmsDay").gte(fiveYearsAgo.toString()) } } }
+            bool.filter { f -> f.range { r -> r.field("building.pmsDay").gte(JsonData.of(fiveYearsAgo.toString())) } }
         }
         if (filter.buildingStcnsDayRecent5y == true) {
             val fiveYearsAgo = LocalDate.now().minusYears(5)
-            bool.filter { f -> f.range { r -> r.date { d -> d.field("building.stcnsDay").gte(fiveYearsAgo.toString()) } } }
+            bool.filter { f -> f.range { r -> r.field("building.stcnsDay").gte(JsonData.of(fiveYearsAgo.toString())) } }
         }
         if (filter.buildingUseAprDayStart != null) {
-            bool.filter { f -> f.range { r -> r.date { d -> d.field("building.useAprDay").gte("${filter.buildingUseAprDayStart}-01-01") } } }
+            bool.filter { f -> f.range { r -> r.field("building.useAprDay").gte(JsonData.of("${filter.buildingUseAprDayStart}-01-01")) } }
         }
         if (filter.buildingUseAprDayEnd != null) {
-            bool.filter { f -> f.range { r -> r.date { d -> d.field("building.useAprDay").lte("${filter.buildingUseAprDayEnd}-12-31") } } }
+            bool.filter { f -> f.range { r -> r.field("building.useAprDay").lte(JsonData.of("${filter.buildingUseAprDayEnd}-12-31")) } }
         }
         if (filter.buildingTotAreaMin != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("building.totArea").gte(filter.buildingTotAreaMin.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("building.totArea").gte(JsonData.of(filter.buildingTotAreaMin.toDouble())) } }
         }
         if (filter.buildingTotAreaMax != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("building.totArea").lte(filter.buildingTotAreaMax.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("building.totArea").lte(JsonData.of(filter.buildingTotAreaMax.toDouble())) } }
         }
         if (filter.buildingPlatAreaMin != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("building.platArea").gte(filter.buildingPlatAreaMin.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("building.platArea").gte(JsonData.of(filter.buildingPlatAreaMin.toDouble())) } }
         }
         if (filter.buildingPlatAreaMax != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("building.platArea").lte(filter.buildingPlatAreaMax.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("building.platArea").lte(JsonData.of(filter.buildingPlatAreaMax.toDouble())) } }
         }
         if (filter.buildingArchAreaMin != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("building.archArea").gte(filter.buildingArchAreaMin.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("building.archArea").gte(JsonData.of(filter.buildingArchAreaMin.toDouble())) } }
         }
         if (filter.buildingArchAreaMax != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("building.archArea").lte(filter.buildingArchAreaMax.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("building.archArea").lte(JsonData.of(filter.buildingArchAreaMax.toDouble())) } }
         }
 
         // Land filters
         if (!filter.landJiyukCd1.isNullOrEmpty()) {
-            bool.filter { f -> f.terms { t -> t.field("land.jiyukCd1").terms { tv -> tv.value(filter.landJiyukCd1.map { co.elastic.clients.elasticsearch._types.FieldValue.of(it) }) } } }
+            bool.filter { f -> f.terms { t -> t.field("land.jiyukCd1").terms { tv -> tv.value(filter.landJiyukCd1.map { org.opensearch.client.opensearch._types.FieldValue.of(it) }) } } }
         }
         if (!filter.landJimokCd.isNullOrEmpty()) {
-            bool.filter { f -> f.terms { t -> t.field("land.jimokCd").terms { tv -> tv.value(filter.landJimokCd.map { co.elastic.clients.elasticsearch._types.FieldValue.of(it) }) } } }
+            bool.filter { f -> f.terms { t -> t.field("land.jimokCd").terms { tv -> tv.value(filter.landJimokCd.map { org.opensearch.client.opensearch._types.FieldValue.of(it) }) } } }
         }
         if (filter.landAreaMin != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("land.area").gte(filter.landAreaMin) } } }
+            bool.filter { f -> f.range { r -> r.field("land.area").gte(JsonData.of(filter.landAreaMin)) } }
         }
         if (filter.landAreaMax != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("land.area").lte(filter.landAreaMax) } } }
+            bool.filter { f -> f.range { r -> r.field("land.area").lte(JsonData.of(filter.landAreaMax)) } }
         }
         if (filter.landPriceMin != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("land.price").gte(filter.landPriceMin.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("land.price").gte(JsonData.of(filter.landPriceMin.toDouble())) } }
         }
         if (filter.landPriceMax != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("land.price").lte(filter.landPriceMax.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("land.price").lte(JsonData.of(filter.landPriceMax.toDouble())) } }
         }
 
         // Trade filters
         if (!filter.tradeProperty.isNullOrEmpty()) {
-            bool.filter { f -> f.terms { t -> t.field("lastRealEstateTrade.property").terms { tv -> tv.value(filter.tradeProperty.map { co.elastic.clients.elasticsearch._types.FieldValue.of(it) }) } } }
+            bool.filter { f -> f.terms { t -> t.field("lastRealEstateTrade.property").terms { tv -> tv.value(filter.tradeProperty.map { org.opensearch.client.opensearch._types.FieldValue.of(it) }) } } }
         }
         if (filter.tradeContractDateStart != null) {
-            bool.filter { f -> f.range { r -> r.date { d -> d.field("lastRealEstateTrade.contractDate").gte(filter.tradeContractDateStart.toString()) } } }
+            bool.filter { f -> f.range { r -> r.field("lastRealEstateTrade.contractDate").gte(JsonData.of(filter.tradeContractDateStart.toString())) } }
         }
         if (filter.tradeContractDateEnd != null) {
-            bool.filter { f -> f.range { r -> r.date { d -> d.field("lastRealEstateTrade.contractDate").lte(filter.tradeContractDateEnd.toString()) } } }
+            bool.filter { f -> f.range { r -> r.field("lastRealEstateTrade.contractDate").lte(JsonData.of(filter.tradeContractDateEnd.toString())) } }
         }
         if (filter.tradeEffectiveAmountMin != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("lastRealEstateTrade.effectiveAmount").gte(filter.tradeEffectiveAmountMin.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("lastRealEstateTrade.effectiveAmount").gte(JsonData.of(filter.tradeEffectiveAmountMin.toDouble())) } }
         }
         if (filter.tradeEffectiveAmountMax != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("lastRealEstateTrade.effectiveAmount").lte(filter.tradeEffectiveAmountMax.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("lastRealEstateTrade.effectiveAmount").lte(JsonData.of(filter.tradeEffectiveAmountMax.toDouble())) } }
         }
         if (filter.tradeBuildingAmountPerM2Min != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("lastRealEstateTrade.buildingAmountPerM2").gte(filter.tradeBuildingAmountPerM2Min.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("lastRealEstateTrade.buildingAmountPerM2").gte(JsonData.of(filter.tradeBuildingAmountPerM2Min.toDouble())) } }
         }
         if (filter.tradeBuildingAmountPerM2Max != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("lastRealEstateTrade.buildingAmountPerM2").lte(filter.tradeBuildingAmountPerM2Max.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("lastRealEstateTrade.buildingAmountPerM2").lte(JsonData.of(filter.tradeBuildingAmountPerM2Max.toDouble())) } }
         }
         if (filter.tradeLandAmountPerM2Min != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("lastRealEstateTrade.landAmountPerM2").gte(filter.tradeLandAmountPerM2Min.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("lastRealEstateTrade.landAmountPerM2").gte(JsonData.of(filter.tradeLandAmountPerM2Min.toDouble())) } }
         }
         if (filter.tradeLandAmountPerM2Max != null) {
-            bool.filter { f -> f.range { r -> r.number { n -> n.field("lastRealEstateTrade.landAmountPerM2").lte(filter.tradeLandAmountPerM2Max.toDouble()) } } }
+            bool.filter { f -> f.range { r -> r.field("lastRealEstateTrade.landAmountPerM2").lte(JsonData.of(filter.tradeLandAmountPerM2Max.toDouble())) } }
         }
     }
 
-    private fun logProfile(response: co.elastic.clients.elasticsearch.core.SearchResponse<Void>) {
+    private fun logProfile(response: org.opensearch.client.opensearch.core.SearchResponse<Void>) {
         val profile = response.profile() ?: return
         val shards = profile.shards()
 

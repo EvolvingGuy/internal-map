@@ -23,8 +23,9 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
-    // Elasticsearch - Spring Boot 3.5.x + Spring Data Elasticsearch 5.4.x + ES 8.x
-    implementation("org.springframework.boot:spring-boot-starter-data-elasticsearch")
+    // OpenSearch Client (AWS OpenSearch 2.11.0 호환)
+    implementation("org.opensearch.client:opensearch-java:2.11.0")
+    implementation("org.opensearch.client:opensearch-rest-client:2.11.0")
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-freemarker")

@@ -1,9 +1,9 @@
 package com.datahub.geo_poc.es.service.ldrc
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch._types.FieldValue
-import co.elastic.clients.elasticsearch._types.aggregations.Aggregation
-import co.elastic.clients.elasticsearch._types.query_dsl.Query
+import org.opensearch.client.opensearch.OpenSearchClient
+import org.opensearch.client.opensearch._types.FieldValue
+import org.opensearch.client.opensearch._types.aggregations.Aggregation
+import org.opensearch.client.opensearch._types.query_dsl.Query
 import com.datahub.geo_poc.es.document.cluster.LdrcDocument
 import com.datahub.geo_poc.es.model.LdrcCluster
 import com.datahub.geo_poc.es.model.LdrcResponse
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service
 
 @Service
 class LdrcQueryService(
-    private val esClient: ElasticsearchClient
+    private val esClient: OpenSearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -104,7 +104,7 @@ class LdrcQueryService(
         // 결과 파싱
         val regionAgg = response.aggregations()["by_region"]?.lterms()
         val clusters = regionAgg?.buckets()?.array()?.map { bucket ->
-            val code = bucket.key()
+            val code = bucket.key().toLong()
             val totalCnt = bucket.aggregations()["sum_cnt"]?.sum()?.value()?.toLong() ?: 0
             val totalLat = bucket.aggregations()["sum_lat"]?.sum()?.value() ?: 0.0
             val totalLng = bucket.aggregations()["sum_lng"]?.sum()?.value() ?: 0.0
@@ -140,7 +140,7 @@ class LdrcQueryService(
         return Query.of { q ->
             q.bool { bool ->
                 bool.filter { f ->
-                    f.term { t -> t.field("level").value(level) }
+                    f.term { t -> t.field("level").value(FieldValue.of(level)) }
                 }
                 bool.filter { f ->
                     f.terms { t ->
@@ -161,7 +161,7 @@ class LdrcQueryService(
         }
     }
 
-    private fun logProfile(response: co.elastic.clients.elasticsearch.core.SearchResponse<Void>) {
+    private fun logProfile(response: org.opensearch.client.opensearch.core.SearchResponse<Void>) {
         val profile = response.profile() ?: return
         val shards = profile.shards()
 

@@ -1,8 +1,8 @@
 package com.datahub.geo_poc.es.service.lnbp
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch.core.BulkRequest
-import co.elastic.clients.elasticsearch.core.bulk.BulkOperation
+import org.opensearch.client.opensearch.OpenSearchClient
+import org.opensearch.client.opensearch.core.BulkRequest
+import org.opensearch.client.opensearch.core.bulk.BulkOperation
 import com.datahub.geo_poc.jpa.entity.BuildingLedgerOutline
 import com.datahub.geo_poc.jpa.entity.BuildingLedgerOutlineSummaries
 import com.datahub.geo_poc.jpa.entity.LandCharacteristic
@@ -39,7 +39,7 @@ class LnbpIndexingService(
     private val buildingSummariesRepo: BuildingLedgerOutlineSummariesRepository,
     private val buildingOutlineRepo: BuildingLedgerOutlineRepository,
     private val realEstateTradeRepo: RealEstateTradeRepository,
-    private val esClient: ElasticsearchClient,
+    private val esClient: OpenSearchClient,
     private val indexingDispatcher: CoroutineDispatcher,
     private val transactionTemplate: TransactionTemplate,
     private val entityManager: EntityManager
@@ -521,7 +521,7 @@ class LnbpIndexingService(
     }
 
     // NO geometry mapping - only geo_point
-    private fun landMapping(p: co.elastic.clients.elasticsearch._types.mapping.Property.Builder) =
+    private fun landMapping(p: org.opensearch.client.opensearch._types.mapping.Property.Builder) =
         p.`object` { o ->
             o.properties("jiyukCd1") { pp -> pp.keyword { it } }
                 .properties("jimokCd") { pp -> pp.keyword { it } }
@@ -530,7 +530,7 @@ class LnbpIndexingService(
                 .properties("center") { pp -> pp.geoPoint { it } }
         }
 
-    private fun buildingsNestedMapping(p: co.elastic.clients.elasticsearch._types.mapping.Property.Builder) =
+    private fun buildingsNestedMapping(p: org.opensearch.client.opensearch._types.mapping.Property.Builder) =
         p.nested { n ->
             n.properties("mgmBldrgstPk") { pp -> pp.keyword { it } }
                 .properties("mainPurpsCdNm") { pp -> pp.keyword { it } }
@@ -543,7 +543,7 @@ class LnbpIndexingService(
                 .properties("archArea") { pp -> pp.scaledFloat { sf -> sf.scalingFactor(100.0) } }
         }
 
-    private fun tradeMapping(p: co.elastic.clients.elasticsearch._types.mapping.Property.Builder) =
+    private fun tradeMapping(p: org.opensearch.client.opensearch._types.mapping.Property.Builder) =
         p.`object` { o ->
             o.properties("property") { pp -> pp.keyword { it } }
                 .properties("contractDate") { pp -> pp.date { it } }

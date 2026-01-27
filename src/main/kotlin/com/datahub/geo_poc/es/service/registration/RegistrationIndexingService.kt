@@ -1,8 +1,8 @@
 package com.datahub.geo_poc.es.service.registration
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch.core.BulkRequest
-import co.elastic.clients.elasticsearch.core.bulk.BulkOperation
+import org.opensearch.client.opensearch.OpenSearchClient
+import org.opensearch.client.opensearch.core.BulkRequest
+import org.opensearch.client.opensearch.core.bulk.BulkOperation
 import com.datahub.geo_poc.es.document.registration.RegistrationDocument
 import com.datahub.geo_poc.jpa.entity.Registration
 import com.datahub.geo_poc.jpa.repository.RegistrationCursorRepository
@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger
 @Service
 class RegistrationIndexingService(
     private val registrationRepo: RegistrationCursorRepository,
-    private val esClient: ElasticsearchClient,
+    private val esClient: OpenSearchClient,
     private val indexingDispatcher: CoroutineDispatcher
 ) {
     private val log = LoggerFactory.getLogger(javaClass)

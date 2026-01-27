@@ -1,6 +1,6 @@
 package com.datahub.geo_poc.es.service.lsrc
 
-import co.elastic.clients.elasticsearch.ElasticsearchClient
+import org.opensearch.client.opensearch.OpenSearchClient
 import com.datahub.geo_poc.es.document.cluster.LsrcDocument
 import com.datahub.geo_poc.es.model.LsrcQueryResponse
 import com.datahub.geo_poc.es.model.LsrcRegionData
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service
  */
 @Service
 class LsrcQueryService(
-    private val esClient: ElasticsearchClient
+    private val esClient: OpenSearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -33,7 +33,7 @@ class LsrcQueryService(
                 .profile(true)
                 .query { q ->
                     q.bool { b ->
-                        b.must { m -> m.term { t -> t.field("level").value(level) } }
+                        b.must { m -> m.term { t -> t.field("level").value(org.opensearch.client.opensearch._types.FieldValue.of(level)) } }
                             .must { m ->
                                 m.geoBoundingBox { geo ->
                                     geo.field("center")
@@ -75,7 +75,7 @@ class LsrcQueryService(
         return LsrcQueryResponse(regions, totalCount, elapsed)
     }
 
-    private fun logProfile(response: co.elastic.clients.elasticsearch.core.SearchResponse<Map<*, *>>, esTook: Long) {
+    private fun logProfile(response: org.opensearch.client.opensearch.core.SearchResponse<Map<*, *>>, esTook: Long) {
         val profile = response.profile() ?: return
         val shards = profile.shards()
 
