@@ -16,6 +16,23 @@
 | /page/es/lc/agg/sgg        | LC Agg SGG - Aggregation with filters                | O      | land_compact                              |
 | /page/es/lc/agg/emd        | LC Agg EMD - Aggregation with filters                | O      | land_compact                              |
 | /page/es/lc/agg/grid       | LC Agg Grid - Grid-style clustering                  | O      | land_compact                              | 그리드 (무필터 버전 추가 가능)
+| /page/es/lnb/agg/sd        | LNB Agg SD - Nested building filter                  | O      | land_nested_building                      | 건물 nested array
+| /page/es/lnb/agg/sgg       | LNB Agg SGG - Nested building filter                 | O      | land_nested_building                      |
+| /page/es/lnb/agg/emd       | LNB Agg EMD - Nested building filter                 | O      | land_nested_building                      |
+| /page/es/lnb/agg/grid      | LNB Agg Grid - Nested building filter                | O      | land_nested_building                      |
+| /page/es/lnbt/agg/sd       | LNBT Agg SD - Nested building+trade filter           | O      | land_nested_building_trade                | 건물+실거래 nested array
+| /page/es/lnbt/agg/sgg      | LNBT Agg SGG - Nested building+trade filter          | O      | land_nested_building_trade                |
+| /page/es/lnbt/agg/emd      | LNBT Agg EMD - Nested building+trade filter          | O      | land_nested_building_trade                |
+| /page/es/lnbt/agg/grid     | LNBT Agg Grid - Nested building+trade filter         | O      | land_nested_building_trade                |
+| /page/es/lcp/agg/sd        | LCP Agg SD - Point version of LC                     | O      | land_compact_point                        | geo_point only (경량)
+| /page/es/lcp/agg/sgg       | LCP Agg SGG - Point version of LC                    | O      | land_compact_point                        |
+| /page/es/lcp/agg/emd       | LCP Agg EMD - Point version of LC                    | O      | land_compact_point                        |
+| /page/es/lnbp/agg/sd       | LNBP Agg SD - Point version of LNB                   | O      | land_nested_building_point                | geo_point only (경량)
+| /page/es/lnbp/agg/sgg      | LNBP Agg SGG - Point version of LNB                  | O      | land_nested_building_point                |
+| /page/es/lnbp/agg/emd      | LNBP Agg EMD - Point version of LNB                  | O      | land_nested_building_point                |
+| /page/es/lnbtp/agg/sd      | LNBTP Agg SD - Point version of LNBT                 | O      | land_nested_building_trade_point          | geo_point only (경량)
+| /page/es/lnbtp/agg/sgg     | LNBTP Agg SGG - Point version of LNBT                | O      | land_nested_building_trade_point          |
+| /page/es/lnbtp/agg/emd     | LNBTP Agg EMD - Point version of LNBT                | O      | land_nested_building_trade_point          |
 
 ## APIs
 
@@ -29,6 +46,23 @@
 | /api/es/lc/agg/sgg           | GET    | /page/es/lc/agg/sgg          | 시군구 집계 (필터)
 | /api/es/lc/agg/emd           | GET    | /page/es/lc/agg/emd          | 읍면동 집계 (필터)
 | /api/es/lc/agg/grid          | GET    | /page/es/lc/agg/grid         | 그리드 클러스터링
+| /api/es/lnb/agg/sd           | GET    | /page/es/lnb/agg/sd          | 시도 집계 (nested 건물 필터)
+| /api/es/lnb/agg/sgg          | GET    | /page/es/lnb/agg/sgg         | 시군구 집계 (nested 건물 필터)
+| /api/es/lnb/agg/emd          | GET    | /page/es/lnb/agg/emd         | 읍면동 집계 (nested 건물 필터)
+| /api/es/lnb/agg/grid         | GET    | /page/es/lnb/agg/grid        | 그리드 클러스터링 (nested 건물 필터)
+| /api/es/lnbt/agg/sd          | GET    | /page/es/lnbt/agg/sd         | 시도 집계 (nested 건물+실거래 필터)
+| /api/es/lnbt/agg/sgg         | GET    | /page/es/lnbt/agg/sgg        | 시군구 집계 (nested 건물+실거래 필터)
+| /api/es/lnbt/agg/emd         | GET    | /page/es/lnbt/agg/emd        | 읍면동 집계 (nested 건물+실거래 필터)
+| /api/es/lnbt/agg/grid        | GET    | /page/es/lnbt/agg/grid       | 그리드 클러스터링 (nested 건물+실거래 필터)
+| /api/es/lcp/agg/sd           | GET    | /page/es/lcp/agg/sd          | 시도 집계 (geo_bounding_box)
+| /api/es/lcp/agg/sgg          | GET    | /page/es/lcp/agg/sgg         | 시군구 집계 (geo_bounding_box)
+| /api/es/lcp/agg/emd          | GET    | /page/es/lcp/agg/emd         | 읍면동 집계 (geo_bounding_box)
+| /api/es/lnbp/agg/sd          | GET    | /page/es/lnbp/agg/sd         | 시도 집계 (geo_bounding_box, nested 건물)
+| /api/es/lnbp/agg/sgg         | GET    | /page/es/lnbp/agg/sgg        | 시군구 집계 (geo_bounding_box, nested 건물)
+| /api/es/lnbp/agg/emd         | GET    | /page/es/lnbp/agg/emd        | 읍면동 집계 (geo_bounding_box, nested 건물)
+| /api/es/lnbtp/agg/sd         | GET    | /page/es/lnbtp/agg/sd        | 시도 집계 (geo_bounding_box, nested 건물+실거래)
+| /api/es/lnbtp/agg/sgg        | GET    | /page/es/lnbtp/agg/sgg       | 시군구 집계 (geo_bounding_box, nested 건물+실거래)
+| /api/es/lnbtp/agg/emd        | GET    | /page/es/lnbtp/agg/emd       | 읍면동 집계 (geo_bounding_box, nested 건물+실거래)
 
 ---
 
@@ -83,6 +117,111 @@
 | lastRealEstateTrade.effectiveAmount     | long      | 거래가
 | lastRealEstateTrade.buildingAmountPerM2 | double    | 건물면적당단가
 | lastRealEstateTrade.landAmountPerM2     | double    | 토지면적당단가
+
+### land_nested_building (LNB)
+필지 단위 인덱스. **건물을 nested array로 저장**하여 개별 건물 단위 필터링 지원.
+LC와 동일 구조이나 building → buildings (nested array)로 변경.
+
+| Field                                   | Type      |
+|-----------------------------------------|-----------|
+| pnu                                     | keyword   | PNU 코드 19자리
+| sd                                      | keyword   | 시도 코드 2자리
+| sgg                                     | keyword   | 시군구 코드 5자리
+| emd                                     | keyword   | 읍면동 코드 8자리
+| land.jiyukCd1                           | keyword   | 용도지역 코드
+| land.jimokCd                            | keyword   | 지목 코드
+| land.area                               | double    | 토지면적
+| land.price                              | long      | 개별공시지가
+| land.center                             | geo_point | 중심 좌표
+| land.geometry                           | geo_shape | GeoJSON (intersects 쿼리용)
+| **buildings**                           | **nested**| 건물 배열 (1:N)
+| buildings.mgmBldrgstPk                  | keyword   | 건축물대장키
+| buildings.mainPurpsCdNm                 | keyword   | 주용도
+| buildings.regstrGbCdNm                  | keyword   | 등기구분
+| buildings.pmsDay                        | date      | 허가일
+| buildings.stcnsDay                      | date      | 착공일
+| buildings.useAprDay                     | date      | 준공일
+| buildings.totArea                       | double    | 연면적
+| buildings.platArea                      | double    | 대지면적
+| buildings.archArea                      | double    | 건축면적
+| lastRealEstateTrade.property            | keyword   | 구분 (토지/건물)
+| lastRealEstateTrade.contractDate        | date      | 거래연월
+| lastRealEstateTrade.effectiveAmount     | long      | 거래가
+| lastRealEstateTrade.buildingAmountPerM2 | double    | 건물면적당단가
+| lastRealEstateTrade.landAmountPerM2     | double    | 토지면적당단가
+
+**nested 쿼리 특징:**
+- 개별 건물 단위로 정확한 필터링 가능
+- 예: "준공일 2020년 이후 건물이 있는 필지" 정확 매칭
+- LC의 object 타입은 cross-object matching 문제 있음
+
+### land_nested_building_trade (LNBT)
+필지 단위 인덱스. **건물과 실거래 모두 nested array로 저장**하여 개별 단위 필터링 지원.
+LNB와 동일 구조이나 lastRealEstateTrade → trades (nested array)로 변경.
+
+| Field                                   | Type      |
+|-----------------------------------------|-----------|
+| pnu                                     | keyword   | PNU 코드 19자리
+| sd                                      | keyword   | 시도 코드 2자리
+| sgg                                     | keyword   | 시군구 코드 5자리
+| emd                                     | keyword   | 읍면동 코드 8자리
+| land.jiyukCd1                           | keyword   | 용도지역 코드
+| land.jimokCd                            | keyword   | 지목 코드
+| land.area                               | double    | 토지면적
+| land.price                              | long      | 개별공시지가
+| land.center                             | geo_point | 중심 좌표
+| land.geometry                           | geo_shape | GeoJSON (intersects 쿼리용)
+| **buildings**                           | **nested**| 건물 배열 (1:N)
+| buildings.mgmBldrgstPk                  | keyword   | 건축물대장키
+| buildings.mainPurpsCdNm                 | keyword   | 주용도
+| buildings.regstrGbCdNm                  | keyword   | 등기구분
+| buildings.pmsDay                        | date      | 허가일
+| buildings.stcnsDay                      | date      | 착공일
+| buildings.useAprDay                     | date      | 준공일
+| buildings.totArea                       | double    | 연면적
+| buildings.platArea                      | double    | 대지면적
+| buildings.archArea                      | double    | 건축면적
+| **trades**                              | **nested**| 실거래 배열 (1:N)
+| trades.property                         | keyword   | 구분 (토지/건물)
+| trades.contractDate                     | date      | 거래연월
+| trades.effectiveAmount                  | long      | 거래가
+| trades.buildingAmountPerM2              | double    | 건물면적당단가
+| trades.landAmountPerM2                  | double    | 토지면적당단가
+
+**nested 쿼리 특징:**
+- 개별 건물 + 개별 실거래 단위로 정확한 필터링 가능
+- 예: "2023년 이후 거래된 필지 중 5억 이상" 정확 매칭
+- LNB의 lastRealEstateTrade(1건)과 달리 전체 거래 이력(N건) 저장
+
+### land_compact_point (LCP)
+LC의 경량 버전. **geometry 없이 geo_point만 저장**하여 용량 최소화.
+
+| Feature       | LC                    | LCP                   |
+|---------------|-----------------------|-----------------------|
+| 공간 데이터    | geometry (geo_shape)  | 없음                   |
+| 공간 쿼리      | geo_shape intersects  | geo_bounding_box      |
+| 인덱스 용량    | ~19GB                 | ~12GB (37% 감소)      |
+
+### land_nested_building_point (LNBP)
+LNB의 경량 버전. **geometry 없이 geo_point만 저장**하여 용량 최소화.
+건물은 nested array 유지.
+
+| Feature       | LNB                   | LNBP                  |
+|---------------|-----------------------|-----------------------|
+| 공간 데이터    | geometry (geo_shape)  | 없음                   |
+| 공간 쿼리      | geo_shape intersects  | geo_bounding_box      |
+| 건물 저장      | nested array          | nested array          |
+
+### land_nested_building_trade_point (LNBTP)
+LNBT의 경량 버전. **geometry 없이 geo_point만 저장**하여 용량 최소화.
+건물과 실거래 모두 nested array 유지.
+
+| Feature       | LNBT                  | LNBTP                 |
+|---------------|-----------------------|-----------------------|
+| 공간 데이터    | geometry (geo_shape)  | 없음                   |
+| 공간 쿼리      | geo_shape intersects  | geo_bounding_box      |
+| 건물 저장      | nested array          | nested array          |
+| 실거래 저장    | nested array          | nested array          |
 
 ### registration
 등기 데이터 인덱스. markers에서 land_compact와 join.
@@ -249,3 +388,90 @@
 | tradeEffectiveAmountMin/Max  | Long         | 거래가 범위
 | tradeBuildingAmountPerM2Min/Max | BigDecimal | 건물면적당단가 범위
 | tradeLandAmountPerM2Min/Max  | BigDecimal   | 토지면적당단가 범위
+
+---
+
+## ES Commands
+
+### Forcemerge
+
+**App API:**
+```bash
+# geo_shape 인덱스
+curl -X PUT http://localhost:3000/api/es/lc/forcemerge
+curl -X PUT http://localhost:3000/api/es/lnb/forcemerge
+curl -X PUT http://localhost:3000/api/es/lnbt/forcemerge
+
+# geo_point 인덱스 (경량)
+curl -X PUT http://localhost:3000/api/es/lcp/forcemerge
+curl -X PUT http://localhost:3000/api/es/lnbp/forcemerge
+curl -X PUT http://localhost:3000/api/es/lnbtp/forcemerge
+
+# 클러스터
+curl -X PUT http://localhost:3000/api/es/lsrc/forcemerge
+curl -X PUT http://localhost:3000/api/es/ldrc/forcemerge
+```
+
+**ES Direct:**
+```bash
+curl -X POST "http://localhost:9200/{index}/_forcemerge?max_num_segments=1"
+```
+
+### Task Monitoring
+
+```bash
+# forcemerge 태스크 확인
+curl -s "http://localhost:9200/_tasks?actions=*forcemerge*"
+
+# 모든 태스크 확인
+curl -s "http://localhost:9200/_cat/tasks?v"
+```
+
+### Segment Status
+
+```bash
+# 세그먼트 상태 확인
+curl -s "http://localhost:9200/_cat/segments/{index}?v"
+
+# 인덱스 상태 확인
+curl -s "http://localhost:9200/_cat/indices?v"
+```
+
+### Reindex
+
+**App API:**
+```bash
+# geo_shape 인덱스
+curl -X PUT http://localhost:3000/api/es/lc/reindex
+curl -X PUT http://localhost:3000/api/es/lnb/reindex
+curl -X PUT http://localhost:3000/api/es/lnbt/reindex
+
+# geo_point 인덱스 (경량)
+curl -X PUT http://localhost:3000/api/es/lcp/reindex
+curl -X PUT http://localhost:3000/api/es/lnbp/reindex
+curl -X PUT http://localhost:3000/api/es/lnbtp/reindex
+
+# 클러스터
+curl -X PUT http://localhost:3000/api/es/lsrc/reindex
+curl -X PUT http://localhost:3000/api/es/ldrc/reindex
+```
+
+### Index Management
+
+```bash
+# 인덱스 삭제
+curl -X DELETE http://localhost:3000/api/es/lc
+curl -X DELETE http://localhost:3000/api/es/lnb
+curl -X DELETE http://localhost:3000/api/es/lnbt
+curl -X DELETE http://localhost:3000/api/es/lcp
+curl -X DELETE http://localhost:3000/api/es/lnbp
+curl -X DELETE http://localhost:3000/api/es/lnbtp
+
+# 문서 수 확인
+curl http://localhost:3000/api/es/lc/count
+curl http://localhost:3000/api/es/lnb/count
+curl http://localhost:3000/api/es/lnbt/count
+curl http://localhost:3000/api/es/lcp/count
+curl http://localhost:3000/api/es/lnbp/count
+curl http://localhost:3000/api/es/lnbtp/count
+```

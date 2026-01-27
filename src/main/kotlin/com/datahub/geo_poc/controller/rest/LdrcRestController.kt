@@ -1,7 +1,7 @@
 package com.datahub.geo_poc.controller.rest
 
-import com.datahub.geo_poc.es.service.LdrcIndexingService
-import com.datahub.geo_poc.es.service.LdrcQueryService
+import com.datahub.geo_poc.es.service.ldrc.LdrcIndexingService
+import com.datahub.geo_poc.es.service.ldrc.LdrcQueryService
 import com.datahub.geo_poc.es.model.LdrcResponse
 import com.datahub.geo_poc.model.BBoxRequest
 import org.slf4j.LoggerFactory

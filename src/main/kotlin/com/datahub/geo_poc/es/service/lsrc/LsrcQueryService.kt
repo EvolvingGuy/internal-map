@@ -1,4 +1,4 @@
-package com.datahub.geo_poc.es.service
+package com.datahub.geo_poc.es.service.lsrc
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import com.datahub.geo_poc.es.document.cluster.LsrcDocument

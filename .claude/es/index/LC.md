@@ -5,7 +5,7 @@
 | key        | value          |
 |------------|----------------|
 | IndexName  | `land_compact` |
-| Shards     | 5              |
+| Shards     | 3              |
 | Replicas   | 0              |
 
 ### 매핑
@@ -67,34 +67,35 @@
 |---------------------|------------|----------|----------------|--------------|----------------|
 | A. Cursor Batch     | Medium     | Good     | Per Batch      | Per Batch    | Hard           |
 | B. Stream + IN      | Low        | Good     | Per Worker     | Per Worker   | Hard           |
-| **C. Stream + SGG** | **Low**    | **Good** | **Per SGG**    | **Per SGG**  | **Easy**       |
+| **C. Stream + EMD** | **Low**    | **Good** | **Per EMD**    | **Per EMD**  | **Easy**       |
 | D. Stateless        | High       | Best     | Independent    | Fine         | Easy           |
 
-### 최종 채택: C. Stream + SGG 단위 루프
+### 최종 채택: C. Stream + EMD 단위 루프
 
 **채택 이유:**
 1. **코드 단순화**: JPA Stream API 활용, 커서 상태 관리 불필요
 2. **메모리 효율**: fetch size로 DB 커서 제어
-3. **부분 갱신 확장성**: 추후 특정 시군구만 개별 업데이트 지원 가능
+3. **부분 갱신 확장성**: 추후 특정 읍면동만 개별 업데이트 지원 가능
    - 인덱싱 전용 프로젝트 분리 시 활용 용이
-4. **사람이 이해하기 쉬운 단위**: 시군구 코드는 비즈니스적으로 명확한 경계
+4. **사람이 이해하기 쉬운 단위**: 읍면동 코드는 비즈니스적으로 명확한 경계
 5. **6개월 1회성 작업**: 복잡한 에러 복구 불필요, 단순함 우선
+6. **일원화**: 모든 인덱스(LC, LNB, LNBT, LCP, LNBP, LNBTP)가 EMD 기반으로 통일
 
 ## Reindex 처리 순서
 ```
 [1] ensureIndexExists()
     ├─ 기존 인덱스 존재 시 삭제
-    └─ 신규 인덱스 생성 (shard:1, replica:0)
+    └─ 신규 인덱스 생성 (shard:3, replica:0)
            ↓
-[2] SGG 분배
-    findDistinctSggCodes() → 20개 워커에 라운드로빈 분배
+[2] EMD 분배
+    findDistinctEmdCodes() → 10개 워커에 라운드로빈 분배
            ↓
-[3] 병렬 처리 (20 Worker)
-    각 워커가 담당 SGG 목록을 순회 (transactionTemplate 사용)
-    ├─ SGG별 Stream 조회 (fetch size 5,000)
+[3] 병렬 처리 (10 Worker)
+    각 워커가 담당 EMD 목록을 순회 (transactionTemplate 사용)
+    ├─ EMD별 Stream 조회 (fetch size 1,000)
     ├─ 청크 단위로 building / trade 조회
     ├─ LandCompactDocument 생성
-    ├─ ES bulk indexing (5,000건)
+    ├─ ES bulk indexing (1,000건)
     └─ entityManager.clear() (메모리 관리)
            ↓
 [4] Forcemerge
@@ -107,28 +108,28 @@
 ## 병렬 처리 구조
 | Config     | Value     |
 |------------|-----------|
-| Worker     | 20        | SGG 라운드로빈 분배
-| Fetch Size | 5,000     | JPA Stream 힌트
-| Bulk Size  | 5,000     | ES bulk 단위
+| Worker     | 10        | EMD 라운드로빈 분배
+| Fetch Size | 1,000     | JPA Stream 힌트 (LcIndexingService.STREAM_SIZE)
+| Bulk Size  | 1,000     | ES bulk 단위 (LcIndexingService.BATCH_SIZE)
 | Dispatcher | IO        | 코루틴 디스패처
 | Memory     | `clear()` | 배치마다 PC 클리어
 
-### SGG 분배 전략
+### EMD 분배 전략
 ```kotlin
-// SGG 코드 목록 조회 → 20개 워커에 라운드로빈 분배
-val sggCodes = landCharRepo.findDistinctSggCodes()  // ~250개
-val workerSggMap = sggCodes.withIndex()
+// EMD 코드 목록 조회 → 10개 워커에 라운드로빈 분배
+val emdCodes = landCharRepo.findDistinctEmdCodes()  // ~3,500개
+val workerEmdMap = emdCodes.withIndex()
     .groupBy { it.index % WORKER_COUNT }
     .mapValues { entry -> entry.value.map { it.value } }
-// 워커 0: [11110, 11170, ...], 워커 1: [11140, 11200, ...], ...
+// 워커 0: [11110101, 11110111, ...], 워커 1: [11110102, 11110112, ...], ...
 ```
 
 ### 워커 처리 로직
 ```kotlin
-// SGG 단위로 트랜잭션 분리 (TransactionTemplate 사용)
-for (sggCode in mySggCodes) {
+// EMD 단위로 트랜잭션 분리 (TransactionTemplate 사용)
+for (emdCode in myEmdCodes) {
     transactionTemplate.execute { _ ->
-        repo.streamBySggCode(sggCode).use { stream ->
+        repo.streamByEmdCode(emdCode).use { stream ->
             stream.asSequence()
                 .chunked(BATCH_SIZE)
                 .forEach { batch ->
@@ -283,8 +284,8 @@ LandCompactDocument 필드별 크기:
 ```
 PostgreSQL (land_characteristic + building + real_estate_trade)
     │
-    │  20 Worker 병렬 처리
-    │  SGG 단위 Stream 조회 (fetch size 5,000)
+    │  10 Worker 병렬 처리
+    │  SGG 단위 Stream 조회 (fetch size 1,000)
     ↓
 LandCompactDocument 생성
     │  - pnu, sd, sgg, emd
@@ -406,3 +407,7 @@ fetchSize는 힌트일 뿐, 정확히 일치하지 않을 수 있음. 그러나 
 - [Vlad Mihalcea - JDBC Statement fetchSize](https://vladmihalcea.com/resultset-statement-fetching-with-jdbc-and-hibernate/)
 - [Entity Hydration 설명](https://codingtechroom.com/question/hydrating-jpa-hibernate-entities)
 - [Spring Data JPA Streaming](https://medium.com/predictly-on-tech/spring-data-jpa-batching-using-streams-af456ea611fc)
+
+### 로컬 인덱싱 밴치?
+배치: 1000, 워커: 10 
+총 문서: 39,668,369건, 벌크 19,962회, 총 소요시간: 2,420,769ms (2420.77s) 

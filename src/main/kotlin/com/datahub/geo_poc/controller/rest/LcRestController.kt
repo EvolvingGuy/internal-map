@@ -1,6 +1,6 @@
 package com.datahub.geo_poc.controller.rest
 
-import com.datahub.geo_poc.es.service.LcIndexingService
+import com.datahub.geo_poc.es.service.lc.LcIndexingService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -34,6 +34,35 @@ class LcRestController(
         return ResponseEntity.accepted().body(mapOf(
             "status" to "started",
             "message" to "Reindex started in background. Check /api/es/lc/count for progress."
+        ))
+    }
+
+    /**
+     * 특정 EMD 코드만 재인덱싱 (백그라운드 실행)
+     * PUT /api/es/lc/reindex/emd?codes=47940101,47940102,48121101
+     */
+    @PutMapping("/reindex/emd")
+    fun reindexByEmd(@RequestParam codes: String): ResponseEntity<Map<String, Any>> {
+        val emdCodes = codes.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        if (emdCodes.isEmpty()) {
+            return ResponseEntity.badRequest().body(mapOf(
+                "status" to "error",
+                "message" to "codes parameter is required (comma-separated EMD codes)"
+            ))
+        }
+
+        log.info("[LC] reindex EMD 요청 - 백그라운드 실행 시작: {}", emdCodes)
+        CompletableFuture.runAsync {
+            try {
+                indexingService.reindexByEmdCodes(emdCodes)
+            } catch (e: Exception) {
+                log.error("[LC] reindex EMD 실패", e)
+            }
+        }
+        return ResponseEntity.accepted().body(mapOf(
+            "status" to "started",
+            "emdCodes" to emdCodes,
+            "message" to "Reindex for ${emdCodes.size} EMD codes started in background."
         ))
     }
 

@@ -52,11 +52,51 @@
 | ~10KB        | 1,000     | ~10MB   |
 
 ### 프로젝트 Bulk Size 설정
-| Index | Doc Size | Bulk Size |
-|-------|----------|-----------|
-| LSRC  | ~150B    | 2,000     | 전체 ~5000개, 한번에 가능
-| LDRC  | ~100B    | 10,000    | 대량 처리, ~1MB 청크
-| LC    | ~500B    | 5,000     | 중간 크기, ~2.5MB 청크
+
+#### 클러스터 인덱스
+| Index | Doc Size | Bulk Size | Payload | 비고 |
+|-------|----------|-----------|---------|------|
+| LSRC  | ~150B    | 2,000     | ~0.3MB  | 전체 ~5000개, 한번에 가능 |
+| LDRC  | ~100B    | 10,000    | ~1MB    | 대량 처리 |
+
+#### 필지 인덱스
+| Index | Doc Size (avg) | Doc Size (max) | Bulk Size | Payload (avg) | Payload (max) |
+|-------|----------------|----------------|-----------|---------------|---------------|
+| LC    | ~600B          | ~2KB           | 2,000     | ~1.2MB        | ~4MB          |
+| LNB   | ~800B          | ~3KB           | 2,000     | ~1.6MB        | ~6MB          |
+| LNBT  | ~1KB           | ~5KB           | 500       | ~0.5MB        | ~2.5MB        |
+
+#### 문서 크기 산정 근거
+
+**공통 필드** (~80B)
+- pnu, sd, sgg, emd: ~30B
+- land (without geometry): ~50B
+
+**land.geometry** (가변, 폴리곤 복잡도에 따라)
+- 단순: ~200B
+- 평균: ~400B
+- 복잡: ~1.5KB
+
+**building/buildings**
+- 단일 건물: ~100B
+- LC: 1개 (object)
+- LNB/LNBT: N개 (nested array)
+- 보수적 추정: 평균 2~3개, 최대 10~20개
+
+**trade/trades**
+- 단일 실거래: ~60B
+- LC/LNB: 1개 (최신 1건, object)
+- LNBT: M개 (nested array)
+- 보수적 추정: 평균 2~3개, 최대 10개 (연도 제한 시)
+
+#### Bulk Size 선정 이유
+- ES 권장 payload: **5~15MB**
+- 20 workers 동시 전송 고려 → 보수적으로 max 15MB 이하 유지
+- 3,000건 기준 max payload ~15MB로 권장 범위 내 유지
+
+#### 주의사항
+- 5,000건으로 설정 시 LNB, LNBT 인덱싱에서 `No buffer space available` 에러 발생 가능
+- nested array(buildings, trades)로 인해 문서 크기 편차가 크므로 보수적 설정 권장
 
 ---
 
@@ -120,3 +160,5 @@ esClient.indices().create { c ->
         }
 }
 ```
+
+### 명령어

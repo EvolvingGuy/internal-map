@@ -1,4 +1,4 @@
-package com.datahub.geo_poc.es.service
+package com.datahub.geo_poc.es.service.lc
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch._types.GeoShapeRelation
@@ -6,6 +6,7 @@ import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery
 import co.elastic.clients.elasticsearch._types.aggregations.StringTermsBucket
 import co.elastic.clients.json.JsonData
 import com.datahub.geo_poc.es.document.land.LandCompactDocument
+import com.datahub.geo_poc.es.service.lsrc.LsrcQueryService
 import com.datahub.geo_poc.model.BBoxRequest
 import com.datahub.geo_poc.model.LcAggFilter
 import com.datahub.geo_poc.model.LcAggRegion
@@ -17,10 +18,12 @@ import java.time.LocalDate
 /**
  * LC (Land Compact) Aggregation 서비스
  * land-compact 인덱스에서 행정구역별 aggregation
+ * 필터 없으면 LSRC(고정형 클러스터) 사용
  */
 @Service
 class LcAggregationService(
-    private val esClient: ElasticsearchClient
+    private val esClient: ElasticsearchClient,
+    private val lsrcQueryService: LsrcQueryService
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -32,14 +35,23 @@ class LcAggregationService(
     }
 
     fun aggregateBySd(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
+        if (!filter.hasAnyFilter()) {
+            return lsrcQueryService.findByBbox("SD", bbox.swLng, bbox.swLat, bbox.neLng, bbox.neLat).toLcAggResponse("SD")
+        }
         return aggregate("sd", SD_SIZE, bbox, filter)
     }
 
     fun aggregateBySgg(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
+        if (!filter.hasAnyFilter()) {
+            return lsrcQueryService.findByBbox("SGG", bbox.swLng, bbox.swLat, bbox.neLng, bbox.neLat).toLcAggResponse("SGG")
+        }
         return aggregate("sgg", SGG_SIZE, bbox, filter)
     }
 
     fun aggregateByEmd(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
+        if (!filter.hasAnyFilter()) {
+            return lsrcQueryService.findByBbox("EMD", bbox.swLng, bbox.swLat, bbox.neLng, bbox.neLat).toLcAggResponse("EMD")
+        }
         return aggregate("emd", EMD_SIZE, bbox, filter)
     }
 

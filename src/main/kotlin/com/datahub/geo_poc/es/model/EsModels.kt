@@ -53,4 +53,26 @@ data class LsrcQueryResponse(
     val regions: List<LsrcRegionData>,
     val totalCount: Int,
     val elapsedMs: Long
-)
+) {
+    /**
+     * LSRC 응답을 LcAggResponse로 변환
+     * 필터 없을 때 LSRC 결과를 LC/LNB/LNBT 응답 형식으로 통일
+     */
+    fun toLcAggResponse(level: String): LcAggResponse {
+        return LcAggResponse(
+            level = level,
+            totalCount = this.totalCount.toLong(),
+            regionCount = this.regions.size,
+            regions = this.regions.map { region ->
+                LcAggRegion(
+                    code = region.code,
+                    name = region.name,
+                    count = region.cnt.toLong(),
+                    centerLat = region.centerLat,
+                    centerLng = region.centerLng
+                )
+            },
+            elapsedMs = this.elapsedMs
+        )
+    }
+}

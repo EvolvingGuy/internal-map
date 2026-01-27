@@ -1,4 +1,4 @@
-package com.datahub.geo_poc.es.service
+package com.datahub.geo_poc.es.service.ldrc
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch.core.BulkRequest
@@ -322,7 +322,7 @@ class LdrcIndexingService(
         esClient.indices().create { c ->
             c.index(INDEX_NAME)
                 .settings { s ->
-                    s.numberOfShards("3")
+                    s.numberOfShards("1")
                         .numberOfReplicas("0")
                 }
                 .mappings { m ->

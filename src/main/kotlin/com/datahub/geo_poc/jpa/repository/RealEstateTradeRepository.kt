@@ -21,4 +21,14 @@ interface RealEstateTradeRepository : JpaRepository<RealEstateTrade, Long> {
         nativeQuery = true
     )
     fun findLatestByPnuIn(@Param("pnuCsv") pnuCsv: String): List<RealEstateTrade>
+
+    /**
+     * PNU 목록으로 전체 실거래 조회 (pnu별 N건)
+     * string_to_array 사용 (ROW expression 1664 제한 회피)
+     */
+    @Query(
+        value = "SELECT t.* FROM external_data.r3_real_estate_trade t WHERE t.pnu = ANY(string_to_array(:pnuCsv, ',')) ORDER BY t.pnu, t.contract_date DESC",
+        nativeQuery = true
+    )
+    fun findAllByPnuIn(@Param("pnuCsv") pnuCsv: String): List<RealEstateTrade>
 }

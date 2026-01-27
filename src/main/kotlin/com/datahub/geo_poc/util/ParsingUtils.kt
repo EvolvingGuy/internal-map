@@ -63,7 +63,7 @@ object ParsingUtils {
     }
 
     private fun parseYyyyMmDd(value: String): LocalDate? {
-        val year = value.substring(0, 4).toInt()
+        val year = value.take(4).toInt()
         val month = value.substring(4, 6).toInt()
         val day = value.substring(6, 8).toInt()
 
@@ -74,7 +74,7 @@ object ParsingUtils {
     }
 
     private fun parseYyyyMm(value: String): LocalDate? {
-        val year = value.substring(0, 4).toInt()
+        val year = value.take(4).toInt()
         val month = value.substring(4, 6).toInt()
 
         if (!isValidMonth(month)) return null

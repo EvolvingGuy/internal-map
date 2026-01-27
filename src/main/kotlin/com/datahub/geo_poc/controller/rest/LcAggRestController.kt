@@ -1,8 +1,8 @@
 package com.datahub.geo_poc.controller.rest
 
 import com.datahub.geo_poc.model.*
-import com.datahub.geo_poc.es.service.LcAggregationService
-import com.datahub.geo_poc.es.service.LcGridAggregationService
+import com.datahub.geo_poc.es.service.lc.LcAggregationService
+import com.datahub.geo_poc.es.service.lc.LcGridAggregationService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 

@@ -13,7 +13,7 @@ object PnuUtils {
      */
     fun extractSd(pnu: String): String {
         require(pnu.length >= 2) { "PNU must be at least 2 characters" }
-        return pnu.substring(0, 2)
+        return pnu.take(2)
     }
 
     /**
@@ -21,7 +21,7 @@ object PnuUtils {
      */
     fun extractSgg(pnu: String): String {
         require(pnu.length >= 5) { "PNU must be at least 5 characters" }
-        return pnu.substring(0, 5)
+        return pnu.take(5)
     }
 
     /**
@@ -29,7 +29,7 @@ object PnuUtils {
      */
     fun extractEmd(pnu: String): String {
         require(pnu.length >= 8) { "PNU must be at least 8 characters" }
-        return pnu.substring(0, 8)
+        return pnu.take(8)
     }
 
     /**
@@ -46,7 +46,7 @@ object PnuUtils {
         val platGbCd = landPnu[10]
         val buildingPlatGbCd = if (platGbCd == '1') '0' else '1'
 
-        return landPnu.substring(0, 10) + buildingPlatGbCd + landPnu.substring(11)
+        return landPnu.take(10) + buildingPlatGbCd + landPnu.drop(11)
     }
 
     /**

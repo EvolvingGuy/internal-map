@@ -1,4 +1,4 @@
-package com.datahub.geo_poc.es.service
+package com.datahub.geo_poc.es.service.lc
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch._types.FieldValue

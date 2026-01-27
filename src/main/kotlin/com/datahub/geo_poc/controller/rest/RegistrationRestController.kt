@@ -1,6 +1,6 @@
 package com.datahub.geo_poc.controller.rest
 
-import com.datahub.geo_poc.es.service.RegistrationIndexingService
+import com.datahub.geo_poc.es.service.registration.RegistrationIndexingService
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*

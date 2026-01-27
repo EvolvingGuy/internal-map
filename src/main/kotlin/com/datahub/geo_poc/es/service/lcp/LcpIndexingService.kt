@@ -1,4 +1,4 @@
-package com.datahub.geo_poc.es.service
+package com.datahub.geo_poc.es.service.lcp
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch.core.BulkRequest
@@ -9,8 +9,7 @@ import com.datahub.geo_poc.jpa.entity.LandCharacteristic
 import com.datahub.geo_poc.jpa.entity.RealEstateTrade
 import com.datahub.geo_poc.es.document.common.BuildingData
 import com.datahub.geo_poc.es.document.common.RealEstateTradeData
-import com.datahub.geo_poc.es.document.land.LandCompactDocument
-import com.datahub.geo_poc.util.GeoJsonUtils
+import com.datahub.geo_poc.es.document.land.LcpDocument
 import com.datahub.geo_poc.util.ParsingUtils
 import com.datahub.geo_poc.util.PnuUtils
 import com.datahub.geo_poc.jpa.repository.*
@@ -19,6 +18,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -27,13 +27,14 @@ import jakarta.persistence.EntityManager
 import java.text.NumberFormat
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 /**
- * LC (Land Compact) 인덱싱 서비스
- * geometry를 geo_shape로 저장하여 intersects 쿼리 지원
+ * LCP (Land Compact Point) 인덱싱 서비스
+ * geometry 없이 center(geo_point)만 저장하여 용량 최소화
  */
 @Service
-class LcIndexingService(
+class LcpIndexingService(
     private val landCharRepo: LandCharacteristicRepository,
     private val buildingSummariesRepo: BuildingLedgerOutlineSummariesRepository,
     private val buildingOutlineRepo: BuildingLedgerOutlineRepository,
@@ -47,69 +48,122 @@ class LcIndexingService(
     private val numberFormat = NumberFormat.getNumberInstance(Locale.US)
 
     companion object {
-        const val INDEX_NAME = LandCompactDocument.INDEX_NAME
-        const val WORKER_COUNT = 20
-        const val BATCH_SIZE = 5000
+        const val INDEX_NAME = LcpDocument.INDEX_NAME
+        const val WORKER_COUNT = 10
+        const val BATCH_SIZE = 1000
+        const val STREAM_SIZE = "$BATCH_SIZE"
     }
 
     private fun formatElapsed(ms: Long): String = "${numberFormat.format(ms)}ms (${String.format("%.2f", ms / 1000.0)}s)"
     private fun formatCount(n: Number): String = numberFormat.format(n)
+    private fun formatAvg(totalMs: Long, count: Int): String {
+        if (count <= 0) return "N/A"
+        val avgMs = totalMs / count
+        return "${String.format("%.2f", avgMs / 1000.0)}s"
+    }
+    private fun formatTotalTime(ms: Long): String {
+        val seconds = ms / 1000.0
+        return if (seconds >= 60) {
+            val minutes = seconds / 60
+            "${String.format("%.2f", minutes)}m (${String.format("%.1f", seconds)}s)"
+        } else {
+            "${String.format("%.2f", seconds)}s"
+        }
+    }
+
+    // 타이밍 통계용 누적 카운터
+    data class TimingStats(
+        val summariesTime: AtomicLong = AtomicLong(0),
+        val outlinesTime: AtomicLong = AtomicLong(0),
+        val tradesTime: AtomicLong = AtomicLong(0),
+        val docsTime: AtomicLong = AtomicLong(0),
+        val bulkTime: AtomicLong = AtomicLong(0),
+        val stepTotalTime: AtomicLong = AtomicLong(0)
+    )
+
+    // processBatch 결과 (타이밍 포함)
+    data class BatchResult(
+        val docs: List<LcpDocument>,
+        val summariesMs: Long,
+        val outlinesMs: Long,
+        val tradesMs: Long,
+        val docsMs: Long
+    )
 
     fun reindex(): Map<String, Any> = runBlocking {
         val startTime = System.currentTimeMillis()
         val results = mutableMapOf<String, Any>()
 
         ensureIndexExists()
-        log.info("[LC] ========== 인덱싱 시작 ==========")
+        log.info("[LCP] ========== 인덱싱 시작 ==========")
 
         val totalCount = landCharRepo.countIndexable()
         val expectedBulks = (totalCount + BATCH_SIZE - 1) / BATCH_SIZE
-        log.info("[LC] 전체 필지 수: {}건, 예상 벌크 {}회", formatCount(totalCount), formatCount(expectedBulks))
+        log.info("[LCP] 전체 필지 수: {}건, 예상 벌크 {}회", formatCount(totalCount), formatCount(expectedBulks))
 
-        // SGG 코드를 워커에 라운드로빈 분배
-        val sggCodes = landCharRepo.findDistinctSggCodes()
-        val workerSggMap = sggCodes.withIndex()
+        val emdCodes = landCharRepo.findDistinctEmdCodes()
+        val workerEmdMap = emdCodes.withIndex()
             .groupBy { it.index % WORKER_COUNT }
             .mapValues { entry -> entry.value.map { it.value } }
 
-        log.info("[LC] SGG {}개 → {}개 워커로 분배", formatCount(sggCodes.size), workerSggMap.size)
+        log.info("[LCP] EMD {}개 → {}개 워커로 분배", formatCount(emdCodes.size), workerEmdMap.size)
 
         val processedCount = AtomicInteger(0)
         val indexedCount = AtomicInteger(0)
         val bulkCount = AtomicInteger(0)
+        val timingStats = TimingStats()
 
         coroutineScope {
-            val jobs = workerSggMap.map { (workerIndex, mySggCodes) ->
+            val jobs = workerEmdMap.map { (workerIndex, myEmdCodes) ->
                 async(indexingDispatcher) {
                     processWorker(
                         workerIndex = workerIndex,
-                        sggCodes = mySggCodes,
+                        emdCodes = myEmdCodes,
                         totalCount = totalCount,
                         expectedBulks = expectedBulks,
                         startTime = startTime,
                         processedCount = processedCount,
                         indexedCount = indexedCount,
-                        bulkCount = bulkCount
+                        bulkCount = bulkCount,
+                        timingStats = timingStats
                     )
                 }
             }
             jobs.awaitAll()
         }
 
-        log.info("[LC] ========== Forcemerge 시작 ==========")
-        val forcemergeStart = System.currentTimeMillis()
-        esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-        log.info("[LC] Forcemerge 완료: {}", formatElapsed(System.currentTimeMillis() - forcemergeStart))
-
         val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LC] ========== 인덱싱 완료 ==========")
-        log.info("[LC] 총 문서: {}건, 벌크 {}회, 총 소요시간: {}",
-            formatCount(indexedCount.get()), formatCount(bulkCount.get()), formatElapsed(elapsed))
+        val finalBulkCount = bulkCount.get()
+
+        log.info("[LCP] ========== 인덱싱 완료 ==========")
+        log.info("[LCP] 총 문서: {}건, 벌크 {}회, 총 소요시간: {}",
+            formatCount(indexedCount.get()), formatCount(finalBulkCount), formatTotalTime(elapsed))
+        log.info("[LCP] ========== 평균 소요시간 (벌크 {}회, 워커 {}개 기준) ==========", formatCount(finalBulkCount), WORKER_COUNT)
+        log.info("[LCP]   summaries 조회: {} (총: {})", formatAvg(timingStats.summariesTime.get(), finalBulkCount), formatTotalTime(timingStats.summariesTime.get() / WORKER_COUNT))
+        log.info("[LCP]   outlines 조회:  {} (총: {})", formatAvg(timingStats.outlinesTime.get(), finalBulkCount), formatTotalTime(timingStats.outlinesTime.get() / WORKER_COUNT))
+        log.info("[LCP]   trades 조회:    {} (총: {})", formatAvg(timingStats.tradesTime.get(), finalBulkCount), formatTotalTime(timingStats.tradesTime.get() / WORKER_COUNT))
+        log.info("[LCP]   docs 생성:      {} (총: {})", formatAvg(timingStats.docsTime.get(), finalBulkCount), formatTotalTime(timingStats.docsTime.get() / WORKER_COUNT))
+        log.info("[LCP]   bulk 인덱싱:    {} (총: {})", formatAvg(timingStats.bulkTime.get(), finalBulkCount), formatTotalTime(timingStats.bulkTime.get() / WORKER_COUNT))
+        log.info("[LCP]   스텝 총합:      {} (총: {})", formatAvg(timingStats.stepTotalTime.get(), finalBulkCount), formatTotalTime(timingStats.stepTotalTime.get() / WORKER_COUNT))
+
+        // Forcemerge 비동기 실행
+        log.info("[LCP] ========== Forcemerge 시작 (비동기) ==========")
+        val forcemergeStartTime = System.currentTimeMillis()
+        launch(indexingDispatcher) {
+            try {
+                esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
+                val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
+                log.info("[LCP] Forcemerge 완료: {}", formatElapsed(forcemergeElapsed))
+            } catch (e: Exception) {
+                val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
+                log.info("[LCP] Forcemerge 요청 완료 (ES 백그라운드 처리 중): {}, 경과: {}", e.message, formatElapsed(forcemergeElapsed))
+            }
+        }
 
         results["totalCount"] = totalCount
         results["processed"] = processedCount.get()
         results["indexed"] = indexedCount.get()
-        results["bulkCount"] = bulkCount.get()
+        results["bulkCount"] = finalBulkCount
         results["elapsedMs"] = elapsed
         results["success"] = true
 
@@ -125,15 +179,16 @@ class LcIndexingService(
     }
 
     fun forcemerge(): Map<String, Any> {
-        val startTime = System.currentTimeMillis()
-        log.info("[LC] forcemerge 시작...")
-        esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-        val elapsed = System.currentTimeMillis() - startTime
-        log.info("[LC] forcemerge 완료: {}ms", elapsed)
+        log.info("[LCP] forcemerge 시작 (백그라운드)...")
+        try {
+            esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
+            log.info("[LCP] forcemerge 완료")
+        } catch (e: Exception) {
+            log.info("[LCP] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
+        }
 
         return mapOf(
             "action" to "forcemerge",
-            "elapsedMs" to elapsed,
             "success" to true
         )
     }
@@ -147,7 +202,7 @@ class LcIndexingService(
 
         return if (exists) {
             esClient.indices().delete { d -> d.index(INDEX_NAME) }
-            log.info("[LC] 인덱스 삭제 완료: {}", INDEX_NAME)
+            log.info("[LCP] 인덱스 삭제 완료: {}", INDEX_NAME)
             mapOf("deleted" to true, "index" to INDEX_NAME)
         } else {
             mapOf("deleted" to false, "index" to INDEX_NAME, "reason" to "not exists")
@@ -158,106 +213,120 @@ class LcIndexingService(
 
     private fun processWorker(
         workerIndex: Int,
-        sggCodes: List<String>,
+        emdCodes: List<String>,
         totalCount: Long,
         expectedBulks: Long,
         startTime: Long,
         processedCount: AtomicInteger,
         indexedCount: AtomicInteger,
-        bulkCount: AtomicInteger
+        bulkCount: AtomicInteger,
+        timingStats: TimingStats
     ) {
         val workerStartTime = System.currentTimeMillis()
         var workerProcessed = 0
         var workerIndexed = 0
         var workerBulkCount = 0
 
-        log.info("[LC] Worker-{} 시작: SGG {}개 담당", workerIndex, formatCount(sggCodes.size))
+        log.info("[LCP] Worker-{} 시작: EMD {}개 담당", workerIndex, formatCount(emdCodes.size))
 
-        for ((sggIdx, sggCode) in sggCodes.withIndex()) {
-            val (sggProcessed, sggIndexed, sggBulks) = processSgg(
-                sggCode = sggCode,
+        for ((emdIdx, emdCode) in emdCodes.withIndex()) {
+            val (emdProcessed, emdIndexed, emdBulks) = processEmd(
+                emdCode = emdCode,
                 workerIndex = workerIndex,
-                sggIdx = sggIdx,
-                totalSgg = sggCodes.size,
+                emdIdx = emdIdx,
+                totalEmd = emdCodes.size,
                 totalCount = totalCount,
                 expectedBulks = expectedBulks,
                 globalStartTime = startTime,
                 processedCount = processedCount,
                 indexedCount = indexedCount,
-                bulkCount = bulkCount
+                bulkCount = bulkCount,
+                timingStats = timingStats
             )
-            workerProcessed += sggProcessed
-            workerIndexed += sggIndexed
-            workerBulkCount += sggBulks
+            workerProcessed += emdProcessed
+            workerIndexed += emdIndexed
+            workerBulkCount += emdBulks
         }
 
         val workerElapsed = System.currentTimeMillis() - workerStartTime
-        log.info("[LC] Worker-{} 완료: {}건, 벌크 {}회, {}",
+        log.info("[LCP] Worker-{} 완료: {}건, 벌크 {}회, {}",
             workerIndex, formatCount(workerIndexed), formatCount(workerBulkCount), formatElapsed(workerElapsed))
     }
 
-    private fun processSgg(
-        sggCode: String,
+    data class EmdResult(val processed: Int, val indexed: Int, val bulks: Int)
+
+    private fun processEmd(
+        emdCode: String,
         workerIndex: Int,
-        sggIdx: Int,
-        totalSgg: Int,
+        emdIdx: Int,
+        totalEmd: Int,
         totalCount: Long,
         expectedBulks: Long,
         globalStartTime: Long,
         processedCount: AtomicInteger,
         indexedCount: AtomicInteger,
-        bulkCount: AtomicInteger
-    ): Triple<Int, Int, Int> {
-        var sggProcessed = 0
-        var sggIndexed = 0
-        var sggBulkCount = 0
-        val sggStartTime = System.currentTimeMillis()
+        bulkCount: AtomicInteger,
+        timingStats: TimingStats
+    ): EmdResult {
+        var emdProcessed = 0
+        var emdIndexed = 0
+        var emdBulkCount = 0
+        val emdStartTime = System.currentTimeMillis()
 
         transactionTemplate.execute { _ ->
-            landCharRepo.streamBySggCode(sggCode).use { stream ->
+            landCharRepo.streamByEmdCode(emdCode).use { stream ->
                 stream.asSequence()
-                    .chunked(BATCH_SIZE)
+                    .chunked(BATCH_SIZE.toInt())
                     .forEach { batch ->
+                        val stepStartTime = System.currentTimeMillis()
+                        val batchResult = processBatch(batch)
+
                         val bulkStartTime = System.currentTimeMillis()
-                        val docs = processBatch(batch)
-
-                        if (docs.isNotEmpty()) {
-                            bulkIndex(docs)
+                        if (batchResult.docs.isNotEmpty()) {
+                            bulkIndex(batchResult.docs)
                         }
+                        val bulkTime = System.currentTimeMillis() - bulkStartTime
+                        val stepTotalTime = System.currentTimeMillis() - stepStartTime
 
-                        sggProcessed += batch.size
-                        sggIndexed += docs.size
-                        sggBulkCount++
+                        // 타이밍 누적
+                        timingStats.summariesTime.addAndGet(batchResult.summariesMs)
+                        timingStats.outlinesTime.addAndGet(batchResult.outlinesMs)
+                        timingStats.tradesTime.addAndGet(batchResult.tradesMs)
+                        timingStats.docsTime.addAndGet(batchResult.docsMs)
+                        timingStats.bulkTime.addAndGet(bulkTime)
+                        timingStats.stepTotalTime.addAndGet(stepTotalTime)
+
+                        emdProcessed += batch.size
+                        emdIndexed += batchResult.docs.size
+                        emdBulkCount++
 
                         val globalProcessed = processedCount.addAndGet(batch.size)
-                        indexedCount.addAndGet(docs.size)
+                        indexedCount.addAndGet(batchResult.docs.size)
                         val globalBulkCount = bulkCount.incrementAndGet()
 
-                        val bulkTime = System.currentTimeMillis() - bulkStartTime
                         val elapsed = System.currentTimeMillis() - globalStartTime
                         val percent = String.format("%.1f", globalProcessed * 100.0 / totalCount)
 
-                        log.info("[LC] Worker-{} 벌크 #{}/{}: {}/{} ({}%) SGG={} ({}/{}), 벌크 {}, 누적 {}",
+                        log.info("[LCP] Worker-{} 벌크 #{}/{}: {}/{} ({}%) EMD={} ({}/{}), 스텝 {}, 누적 {}",
                             workerIndex,
                             formatCount(globalBulkCount), formatCount(expectedBulks),
                             formatCount(globalProcessed), formatCount(totalCount), percent,
-                            sggCode, sggIdx + 1, totalSgg,
-                            formatElapsed(bulkTime), formatElapsed(elapsed))
+                            emdCode, emdIdx + 1, totalEmd,
+                            formatElapsed(stepTotalTime), formatTotalTime(elapsed))
 
-                        // 1차 캐시 클리어 (메모리 누적 방지)
                         entityManager.clear()
                     }
             }
         }
 
-        val sggElapsed = System.currentTimeMillis() - sggStartTime
-        log.info("[LC] Worker-{} SGG {} 완료: {}건, 벌크 {}회, {}",
-            workerIndex, sggCode, formatCount(sggProcessed), formatCount(sggBulkCount), formatElapsed(sggElapsed))
+        val emdElapsed = System.currentTimeMillis() - emdStartTime
+        log.info("[LCP] Worker-{} EMD {} 완료: {}건, 벌크 {}회, {}",
+            workerIndex, emdCode, formatCount(emdProcessed), formatCount(emdBulkCount), formatElapsed(emdElapsed))
 
-        return Triple(sggProcessed, sggIndexed, sggBulkCount)
+        return EmdResult(emdProcessed, emdIndexed, emdBulkCount)
     }
 
-    private fun processBatch(entities: List<LandCharacteristic>): List<LandCompactDocument> {
+    private fun processBatch(entities: List<LandCharacteristic>): BatchResult {
         val pnuList = entities.map { it.pnu }
         val buildingPnuList = pnuList.map { PnuUtils.convertLandPnuToBuilding(it) }
 
@@ -274,10 +343,13 @@ class LcIndexingService(
         }
         val t5 = System.currentTimeMillis()
 
-        log.info("[LC] processBatch: summaries={}ms, outlines={}ms, trades={}ms, docs={}ms",
-            t2 - t1, t3 - t2, t4 - t3, t5 - t4)
-
-        return docs
+        return BatchResult(
+            docs = docs,
+            summariesMs = t2 - t1,
+            outlinesMs = t3 - t2,
+            tradesMs = t4 - t3,
+            docsMs = t5 - t4
+        )
     }
 
     private fun loadBuildingSummaries(buildingPnuList: List<String>): Map<String, BuildingLedgerOutlineSummaries> {
@@ -315,7 +387,9 @@ class LcIndexingService(
         summariesMap: Map<String, BuildingLedgerOutlineSummaries>,
         outlineMap: Map<String, BuildingLedgerOutline>,
         tradeMap: Map<String, RealEstateTradeData>
-    ): LandCompactDocument? {
+    ): LcpDocument? {
+        val center = entity.center ?: return null  // center 필수
+
         return try {
             val buildingPnu = PnuUtils.convertLandPnuToBuilding(entity.pnu)
 
@@ -324,33 +398,25 @@ class LcIndexingService(
 
             val tradeData = tradeMap[entity.pnu]
 
-            LandCompactDocument(
+            LcpDocument(
                 pnu = entity.pnu,
                 sd = PnuUtils.extractSd(entity.pnu),
                 sgg = PnuUtils.extractSgg(entity.pnu),
                 emd = PnuUtils.extractEmd(entity.pnu),
-                land = toLandData(entity),
+                land = LcpDocument.Land(
+                    jiyukCd1 = entity.jiyukCd1?.takeIf { it.isNotBlank() },
+                    jimokCd = entity.jimokCd?.takeIf { it.isNotBlank() },
+                    area = ParsingUtils.toDoubleOrNull(entity.area),
+                    price = ParsingUtils.toLongOrNull(entity.price),
+                    center = mapOf("lat" to center.y, "lon" to center.x)
+                ),
                 building = buildingData,
                 lastRealEstateTrade = tradeData
             )
         } catch (e: Exception) {
-            log.warn("[LC] 문서 생성 실패 pnu={}: {}", entity.pnu, e.message)
+            log.warn("[LCP] 문서 생성 실패 pnu={}: {}", entity.pnu, e.message)
             null
         }
-    }
-
-    private fun toLandData(entity: LandCharacteristic): LandCompactDocument.Land {
-        val center = entity.center
-        val geometryObj = GeoJsonUtils.toGeoJson(entity.geometry)
-
-        return LandCompactDocument.Land(
-            jiyukCd1 = entity.jiyukCd1?.takeIf { it.isNotBlank() },
-            jimokCd = entity.jimokCd?.takeIf { it.isNotBlank() },
-            area = ParsingUtils.toDoubleOrNull(entity.area),
-            price = ParsingUtils.toLongOrNull(entity.price),
-            center = center?.let { mapOf("lat" to it.y, "lon" to it.x) } ?: emptyMap(),
-            geometry = geometryObj
-        )
     }
 
     private fun toBuildingData(entity: BuildingLedgerOutlineSummaries): BuildingData? {
@@ -402,13 +468,13 @@ class LcIndexingService(
 
         if (exists) {
             esClient.indices().delete { d -> d.index(INDEX_NAME) }
-            log.info("[LC] 기존 인덱스 삭제")
+            log.info("[LCP] 기존 인덱스 삭제")
         }
 
         esClient.indices().create { c ->
             c.index(INDEX_NAME)
                 .settings { s ->
-                    s.numberOfShards("5")
+                    s.numberOfShards("4")
                         .numberOfReplicas("0")
                 }
                 .mappings { m ->
@@ -421,7 +487,7 @@ class LcIndexingService(
                         .properties("lastRealEstateTrade") { p -> tradeMapping(p) }
                 }
         }
-        log.info("[LC] 인덱스 생성: {}", INDEX_NAME)
+        log.info("[LCP] 인덱스 생성: {}", INDEX_NAME)
     }
 
     private fun landMapping(p: co.elastic.clients.elasticsearch._types.mapping.Property.Builder) =
@@ -431,7 +497,7 @@ class LcIndexingService(
                 .properties("area") { pp -> pp.double_ { it } }
                 .properties("price") { pp -> pp.long_ { it } }
                 .properties("center") { pp -> pp.geoPoint { it } }
-                .properties("geometry") { pp -> pp.geoShape { it } }
+                // geometry 없음 - LC와의 핵심 차이점
         }
 
     private fun buildingMapping(p: co.elastic.clients.elasticsearch._types.mapping.Property.Builder) =
@@ -456,7 +522,7 @@ class LcIndexingService(
                 .properties("landAmountPerM2") { pp -> pp.scaledFloat { sf -> sf.scalingFactor(100.0) } }
         }
 
-    private fun bulkIndex(docs: List<LandCompactDocument>) {
+    private fun bulkIndex(docs: List<LcpDocument>) {
         if (docs.isEmpty()) return
 
         val operations = docs.map { doc ->
@@ -476,9 +542,9 @@ class LcIndexingService(
         val response = esClient.bulk(request)
         if (response.errors()) {
             val failedItems = response.items().filter { it.error() != null }
-            log.warn("[LC bulkIndex] 일부 실패: {}/{}", failedItems.size, docs.size)
+            log.warn("[LCP bulkIndex] 일부 실패: {}/{}", failedItems.size, docs.size)
             failedItems.take(3).forEach { item ->
-                log.warn("[LC] 실패 id={}, reason={}", item.id(), item.error()?.reason())
+                log.warn("[LCP] 실패 id={}, reason={}", item.id(), item.error()?.reason())
             }
         }
     }

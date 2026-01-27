@@ -1,7 +1,7 @@
 package com.datahub.geo_poc.controller.rest
 
 import com.datahub.geo_poc.es.model.LsrcQueryResponse
-import com.datahub.geo_poc.es.service.LsrcQueryService
+import com.datahub.geo_poc.es.service.lsrc.LsrcQueryService
 import com.datahub.geo_poc.model.BBoxRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*

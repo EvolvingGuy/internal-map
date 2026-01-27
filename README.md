@@ -102,6 +102,46 @@ Base URL: `http://localhost:3000`
 - Land: `landJiyukCd1`, `landJimokCd`, `landAreaMin/Max`, `landPriceMin/Max`
 - Trade: `tradeProperty`, `tradeContractDateStart/End`, `tradeEffectiveAmountMin/Max`, ...
 
+### LNB (Land Nested Building - 건물 nested array)
+
+| Method | Endpoint                 |
+|--------|--------------------------|
+| PUT    | `/api/es/lnb/reindex`    | 전체 재인덱싱 (백그라운드)
+| PUT    | `/api/es/lnb/forcemerge` | Forcemerge 실행
+| GET    | `/api/es/lnb/count`      | 인덱스 문서 수
+| DELETE | `/api/es/lnb`            | 인덱스 삭제
+
+### LNB Aggregation (nested 건물 필터 + 집계)
+
+| Method | Endpoint                                                                                    |
+|--------|---------------------------------------------------------------------------------------------|
+| GET    | `/api/es/lnb/agg/sd?swLng=&swLat=&neLng=&neLat=&{filters}`                                  | 시도별 집계
+| GET    | `/api/es/lnb/agg/sgg?swLng=&swLat=&neLng=&neLat=&{filters}`                                 | 시군구별 집계
+| GET    | `/api/es/lnb/agg/emd?swLng=&swLat=&neLng=&neLat=&{filters}`                                 | 읍면동별 집계
+| GET    | `/api/es/lnb/agg/grid?swLng=&swLat=&neLng=&neLat=&viewportWidth=&viewportHeight=&{filters}` | 그리드 집계
+
+**특징:** nested 쿼리로 개별 건물 단위 정확한 필터링 지원
+
+### LNBT (Land Nested Building Trade - 건물+실거래 nested array)
+
+| Method | Endpoint                  |
+|--------|---------------------------|
+| PUT    | `/api/es/lnbt/reindex`    | 전체 재인덱싱 (백그라운드)
+| PUT    | `/api/es/lnbt/forcemerge` | Forcemerge 실행
+| GET    | `/api/es/lnbt/count`      | 인덱스 문서 수
+| DELETE | `/api/es/lnbt`            | 인덱스 삭제
+
+### LNBT Aggregation (nested 건물+실거래 필터 + 집계)
+
+| Method | Endpoint                                                                                     |
+|--------|----------------------------------------------------------------------------------------------|
+| GET    | `/api/es/lnbt/agg/sd?swLng=&swLat=&neLng=&neLat=&{filters}`                                  | 시도별 집계
+| GET    | `/api/es/lnbt/agg/sgg?swLng=&swLat=&neLng=&neLat=&{filters}`                                 | 시군구별 집계
+| GET    | `/api/es/lnbt/agg/emd?swLng=&swLat=&neLng=&neLat=&{filters}`                                 | 읍면동별 집계
+| GET    | `/api/es/lnbt/agg/grid?swLng=&swLat=&neLng=&neLat=&viewportWidth=&viewportHeight=&{filters}` | 그리드 집계
+
+**특징:** nested 쿼리로 개별 건물 + 개별 실거래 단위 정확한 필터링 지원
+
 ### Registration (등기)
 
 | Method | Endpoint                          |
@@ -137,10 +177,28 @@ Base URL: `http://localhost:3000`
 
 | URL                                         |
 |---------------------------------------------|
-| `http://localhost:3000/page/es/lc/agg/sd`   | 시도 필터 집계 
-| `http://localhost:3000/page/es/lc/agg/sgg`  | 시군구 필터 집계 
-| `http://localhost:3000/page/es/lc/agg/emd`  | 읍면동 필터 집계 
-| `http://localhost:3000/page/es/lc/agg/grid` | 그리드 필터 집계 
+| `http://localhost:3000/page/es/lc/agg/sd`   | 시도 필터 집계
+| `http://localhost:3000/page/es/lc/agg/sgg`  | 시군구 필터 집계
+| `http://localhost:3000/page/es/lc/agg/emd`  | 읍면동 필터 집계
+| `http://localhost:3000/page/es/lc/agg/grid` | 그리드 필터 집계
+
+### LNB Pages (nested 건물 필터 지도)
+
+| URL                                          |
+|----------------------------------------------|
+| `http://localhost:3000/page/es/lnb/agg/sd`   | 시도 nested 필터 집계
+| `http://localhost:3000/page/es/lnb/agg/sgg`  | 시군구 nested 필터 집계
+| `http://localhost:3000/page/es/lnb/agg/emd`  | 읍면동 nested 필터 집계
+| `http://localhost:3000/page/es/lnb/agg/grid` | 그리드 nested 필터 집계
+
+### LNBT Pages (nested 건물+실거래 필터 지도)
+
+| URL                                           |
+|-----------------------------------------------|
+| `http://localhost:3000/page/es/lnbt/agg/sd`   | 시도 nested 필터 집계
+| `http://localhost:3000/page/es/lnbt/agg/sgg`  | 시군구 nested 필터 집계
+| `http://localhost:3000/page/es/lnbt/agg/emd`  | 읍면동 nested 필터 집계
+| `http://localhost:3000/page/es/lnbt/agg/grid` | 그리드 nested 필터 집계
 
 ---
 
@@ -161,7 +219,9 @@ Base URL: `http://localhost:3000`
 │   └── index/
 │       ├── LSRC.md    # LSRC 인덱스 스펙
 │       ├── LDRC.md    # LDRC 인덱스 스펙
-│       └── LC.md      # LC 인덱스 스펙
+│       ├── LC.md      # LC 인덱스 스펙
+│       ├── LNB.md     # LNB 인덱스 스펙
+│       └── LNBT.md    # LNBT 인덱스 스펙
 └── sql/
     ├── land_characteristic.md
     ├── boundary_region.md
