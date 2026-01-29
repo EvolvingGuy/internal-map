@@ -114,14 +114,15 @@ class LsrcIndexingService(
         log.info("[LSRC] ES 인덱싱 완료: {} 개, elapsed: {}ms ({:.1f}s)",
             docs.size, indexElapsedMs, indexElapsedMs / 1000.0)
 
-        // [7] Forcemerge (백그라운드)
-        log.info("[LSRC] forcemerge 시작 (백그라운드)...")
-        try {
-            esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-            log.info("[LSRC] forcemerge 완료")
-        } catch (e: Exception) {
-            log.info("[LSRC] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
-        }
+        // [7] forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
+        // (original forcemerge code commented out)
+        // log.info("[LSRC] forcemerge 시작 (백그라운드)...")
+        // try {
+        //     esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
+        //     log.info("[LSRC] forcemerge 완료")
+        // } catch (e: Exception) {
+        //     log.info("[LSRC] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
+        // }
 
         // [8] 결과 반환
         val totalElapsedMs = System.currentTimeMillis() - startTime
@@ -167,17 +168,11 @@ class LsrcIndexingService(
     }
 
     fun forcemerge(): Map<String, Any> {
-        log.info("[LSRC] forcemerge 시작 (백그라운드)...")
-        try {
-            esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-            log.info("[LSRC] forcemerge 완료")
-        } catch (e: Exception) {
-            log.info("[LSRC] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
-        }
-
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
         return mapOf(
             "action" to "forcemerge",
-            "success" to true
+            "status" to "disabled",
+            "reason" to "집계 기반 워크로드에서 실효성 없음"
         )
     }
 

@@ -30,7 +30,7 @@ class LsrcQueryService(
         val response = esClient.search({ s ->
             s.index(INDEX_NAME)
                 .size(1000)
-                .profile(true)
+                .profile(false)
                 .query { q ->
                     q.bool { b ->
                         b.must { m -> m.term { t -> t.field("level").value(org.opensearch.client.opensearch._types.FieldValue.of(level)) } }

@@ -81,21 +81,21 @@ class LdrcIndexingService(
         results["sd"] = mapOf("count" to sdDocs.size, "aggregateMs" to sdAggTime, "indexMs" to sdIndexTime, "totalMs" to sdTotalTime)
         totalDocs += sdDocs.size
 
-        // forcemerge (비동기 - 대용량 인덱스 타임아웃 방지)
-        log.info("[LDRC] ========== Forcemerge 시작 (비동기) ==========")
-        esClient.indices().forcemerge { f ->
-            f.index(INDEX_NAME)
-                .maxNumSegments(1L)
-                
-        }
-        log.info("[LDRC] Forcemerge 요청 완료 (백그라운드 실행 중)")
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
+        // (original forcemerge code commented out)
+        // log.info("[LDRC] ========== Forcemerge 시작 (비동기) ==========")
+        // esClient.indices().forcemerge { f ->
+        //     f.index(INDEX_NAME)
+        //         .maxNumSegments(1L)
+        // }
+        // log.info("[LDRC] Forcemerge 요청 완료 (백그라운드 실행 중)")
 
         val totalElapsed = System.currentTimeMillis() - totalStartTime
         log.info("[LDRC] ========== 전체 완료 ==========")
         log.info("[LDRC] 총 문서: {}건, 총 소요시간: {}", formatCount(totalDocs), formatElapsed(totalElapsed))
 
         results["total"] = mapOf("count" to totalDocs, "elapsedMs" to totalElapsed)
-        results["forcemerge"] = "async"
+        results["forcemerge"] = "disabled"
         results["success"] = true
 
         return results
@@ -439,18 +439,11 @@ class LdrcIndexingService(
      * Forcemerge 실행 (비동기)
      */
     fun forcemerge(): Map<String, Any> {
-        log.info("[LDRC] ========== Forcemerge 시작 (비동기) ==========")
-        esClient.indices().forcemerge { f ->
-            f.index(INDEX_NAME)
-                .maxNumSegments(1L)
-                
-        }
-        log.info("[LDRC] Forcemerge 요청 완료 (백그라운드 실행 중)")
-
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
         return mapOf(
             "action" to "forcemerge",
-            "mode" to "async",
-            "success" to true
+            "status" to "disabled",
+            "reason" to "집계 기반 워크로드에서 실효성 없음"
         )
     }
 }

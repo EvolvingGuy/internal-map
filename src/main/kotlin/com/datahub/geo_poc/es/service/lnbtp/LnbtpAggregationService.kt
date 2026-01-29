@@ -12,6 +12,7 @@ import com.datahub.geo_poc.model.LcAggFilter
 import com.datahub.geo_poc.model.LcAggRegion
 import com.datahub.geo_poc.model.LcAggResponse
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 
@@ -22,6 +23,7 @@ import java.time.LocalDate
  */
 @Service
 class LnbtpAggregationService(
+    @Value("\${opensearch.profile.enabled:false}") private val profileEnabled: Boolean,
     private val esClient: OpenSearchClient,
     private val lsrcQueryService: LsrcQueryService
 ) {
@@ -61,7 +63,7 @@ class LnbtpAggregationService(
         val response = esClient.search({ s ->
             s.index(INDEX_NAME)
                 .size(0)
-                .profile(true)
+                .profile(profileEnabled)
                 .query { q ->
                     q.bool { bool ->
                         // geo_bounding_box 쿼리 (geo_shape intersects 대신)
@@ -88,15 +90,17 @@ class LnbtpAggregationService(
                 }
         }, Void::class.java)
 
+        val esTook = response.took()
+        logProfile(response, field)
+
         val buckets = response.aggregations()["by_region"]?.sterms()?.buckets()?.array() ?: emptyList()
 
         val regions = buckets.map { bucket -> toRegion(bucket) }
         val totalCount = regions.sumOf { it.count }
         val elapsed = System.currentTimeMillis() - startTime
 
-        logProfile(response, field)
-        log.info("[LNBTP Agg] field={}, regions={}, totalCount={}, hasFilter={}, elapsed={}ms",
-            field, regions.size, totalCount, filter.hasAnyFilter(), elapsed)
+        log.info("[LNBTP Agg] field={}, regions={}, totalCount={}, hasFilter={}, index={}, ES took={}ms, total={}ms",
+            field, regions.size, totalCount, filter.hasAnyFilter(), INDEX_NAME, esTook, elapsed)
 
         return LcAggResponse(
             level = field.uppercase(),
@@ -328,12 +332,19 @@ class LnbtpAggregationService(
         val profile = response.profile() ?: return
         val shards = profile.shards()
 
-        shards.forEachIndexed { idx, shardProfile ->
+        log.info("[LNBTP Profile] field={}, shards={}", field, shards.size)
+
+        shards.forEach { shardProfile ->
+            val shardId = shardProfile.id()
             shardProfile.searches().forEach { search ->
                 search.query().forEach { queryProfile ->
                     val timeMs = String.format("%.2f", queryProfile.timeInNanos() / 1_000_000.0)
-                    log.info("[LNBTP Agg Profile] field={}, 샤드[{}] {} - {}ms", field, idx, queryProfile.type(), timeMs)
+                    log.info("[LNBTP Profile] {} - {} - {}ms", shardId, queryProfile.type(), timeMs)
                 }
+            }
+            shardProfile.aggregations().forEach { aggProfile ->
+                val timeMs = String.format("%.2f", aggProfile.timeInNanos() / 1_000_000.0)
+                log.info("[LNBTP Profile] {} - agg:{} - {}ms", shardId, aggProfile.type(), timeMs)
             }
         }
     }

@@ -12,6 +12,7 @@ import com.datahub.geo_poc.model.LcAggFilter
 import com.datahub.geo_poc.model.LcAggRegion
 import com.datahub.geo_poc.model.LcAggResponse
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 
@@ -22,6 +23,7 @@ import java.time.LocalDate
  */
 @Service
 class LnbpAggregationService(
+    @Value("\${opensearch.profile.enabled:false}") private val profileEnabled: Boolean,
     private val esClient: OpenSearchClient,
     private val lsrcQueryService: LsrcQueryService
 ) {
@@ -61,7 +63,7 @@ class LnbpAggregationService(
         val response = esClient.search({ s ->
             s.index(INDEX_NAME)
                 .size(0)
-                .profile(true)
+                .profile(profileEnabled)
                 .query { q ->
                     q.bool { bool ->
                         // geo_bounding_box 쿼리 (geo_shape intersects 대신)

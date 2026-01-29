@@ -69,13 +69,15 @@ class RegistrationIndexingService(
             jobs.awaitAll()
         }
 
-        log.info("[Registration] forcemerge 시작 (백그라운드)...")
-        try {
-            esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-            log.info("[Registration] forcemerge 완료")
-        } catch (e: Exception) {
-            log.info("[Registration] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
-        }
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
+        // (original forcemerge code commented out)
+        // log.info("[Registration] forcemerge 시작 (백그라운드)...")
+        // try {
+        //     esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
+        //     log.info("[Registration] forcemerge 완료")
+        // } catch (e: Exception) {
+        //     log.info("[Registration] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
+        // }
 
         val elapsed = System.currentTimeMillis() - startTime
         log.info("[Registration] ========== 인덱싱 완료 ==========")
@@ -106,17 +108,11 @@ class RegistrationIndexingService(
      * forcemerge 실행
      */
     fun forcemerge(): Map<String, Any> {
-        log.info("[Registration] forcemerge 시작 (백그라운드)...")
-        try {
-            esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-            log.info("[Registration] forcemerge 완료")
-        } catch (e: Exception) {
-            log.info("[Registration] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
-        }
-
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
         return mapOf(
             "action" to "forcemerge",
-            "success" to true
+            "status" to "disabled",
+            "reason" to "집계 기반 워크로드에서 실효성 없음"
         )
     }
 

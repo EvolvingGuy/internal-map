@@ -21,6 +21,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
+import com.datahub.geo_poc.util.IndexingLogHelper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import jakarta.persistence.EntityManager
@@ -146,19 +147,19 @@ class LcpIndexingService(
         log.info("[LCP]   bulk 인덱싱:    {} (총: {})", formatAvg(timingStats.bulkTime.get(), finalBulkCount), formatTotalTime(timingStats.bulkTime.get() / WORKER_COUNT))
         log.info("[LCP]   스텝 총합:      {} (총: {})", formatAvg(timingStats.stepTotalTime.get(), finalBulkCount), formatTotalTime(timingStats.stepTotalTime.get() / WORKER_COUNT))
 
-        // Forcemerge 비동기 실행
-        log.info("[LCP] ========== Forcemerge 시작 (비동기) ==========")
-        val forcemergeStartTime = System.currentTimeMillis()
-        launch(indexingDispatcher) {
-            try {
-                esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-                val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
-                log.info("[LCP] Forcemerge 완료: {}", formatElapsed(forcemergeElapsed))
-            } catch (e: Exception) {
-                val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
-                log.info("[LCP] Forcemerge 요청 완료 (ES 백그라운드 처리 중): {}, 경과: {}", e.message, formatElapsed(forcemergeElapsed))
-            }
-        }
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
+        // log.info("[LCP] ========== Forcemerge 시작 (비동기) ==========")
+        // val forcemergeStartTime = System.currentTimeMillis()
+        // launch(indexingDispatcher) {
+        //     try {
+        //         esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
+        //         val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
+        //         log.info("[LCP] Forcemerge 완료: {}", formatElapsed(forcemergeElapsed))
+        //     } catch (e: Exception) {
+        //         val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
+        //         log.info("[LCP] Forcemerge 요청 완료 (ES 백그라운드 처리 중): {}, 경과: {}", e.message, formatElapsed(forcemergeElapsed))
+        //     }
+        // }
 
         results["totalCount"] = totalCount
         results["processed"] = processedCount.get()
@@ -179,17 +180,18 @@ class LcpIndexingService(
     }
 
     fun forcemerge(): Map<String, Any> {
-        log.info("[LCP] forcemerge 시작 (백그라운드)...")
-        try {
-            esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-            log.info("[LCP] forcemerge 완료")
-        } catch (e: Exception) {
-            log.info("[LCP] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
-        }
-
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
+        // log.info("[LCP] forcemerge 시작 (백그라운드)...")
+        // try {
+        //     esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
+        //     log.info("[LCP] forcemerge 완료")
+        // } catch (e: Exception) {
+        //     log.info("[LCP] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
+        // }
         return mapOf(
             "action" to "forcemerge",
-            "success" to true
+            "status" to "disabled",
+            "reason" to "집계 기반 워크로드에서 실효성 없음"
         )
     }
 
@@ -305,14 +307,16 @@ class LcpIndexingService(
                         val globalBulkCount = bulkCount.incrementAndGet()
 
                         val elapsed = System.currentTimeMillis() - globalStartTime
-                        val percent = String.format("%.1f", globalProcessed * 100.0 / totalCount)
 
-                        log.info("[LCP] Worker-{} 벌크 #{}/{}: {}/{} ({}%) EMD={} ({}/{}), 스텝 {}, 누적 {}",
-                            workerIndex,
-                            formatCount(globalBulkCount), formatCount(expectedBulks),
-                            formatCount(globalProcessed), formatCount(totalCount), percent,
-                            emdCode, emdIdx + 1, totalEmd,
-                            formatElapsed(stepTotalTime), formatTotalTime(elapsed))
+                        IndexingLogHelper.logBulkStep(log, IndexingLogHelper.BulkStepLog(
+                            tag = "LCP", workerIndex = workerIndex,
+                            bulkCount = globalBulkCount, expectedBulks = expectedBulks,
+                            processed = globalProcessed, totalCount = totalCount,
+                            emdCode = emdCode, emdIdx = emdIdx, totalEmd = totalEmd,
+                            summariesMs = batchResult.summariesMs, outlinesMs = batchResult.outlinesMs,
+                            tradesMs = batchResult.tradesMs, docsMs = batchResult.docsMs,
+                            bulkMs = bulkTime, stepTotalMs = stepTotalTime, accumulatedMs = elapsed
+                        ))
 
                         entityManager.clear()
                     }

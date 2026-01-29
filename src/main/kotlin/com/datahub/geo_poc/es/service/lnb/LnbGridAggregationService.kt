@@ -9,6 +9,7 @@ import org.opensearch.client.json.JsonData
 import com.datahub.geo_poc.es.document.land.LnbDocument
 import com.datahub.geo_poc.model.*
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.time.LocalDate
 import kotlin.math.ceil
@@ -19,6 +20,7 @@ import kotlin.math.ceil
  */
 @Service
 class LnbGridAggregationService(
+    @Value("\${opensearch.profile.enabled:false}") private val profileEnabled: Boolean,
     private val esClient: OpenSearchClient
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -56,7 +58,7 @@ class LnbGridAggregationService(
         val response = esClient.search({ s ->
             s.index(INDEX_NAME)
                 .size(0)
-                .profile(true)
+                .profile(profileEnabled)
                 .query { q ->
                     q.bool { bool ->
                         bool.must { must ->

@@ -21,6 +21,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
+import com.datahub.geo_poc.util.IndexingLogHelper
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import jakarta.persistence.EntityManager
@@ -141,19 +142,20 @@ class LnbtpIndexingService(
         log.info("[LNBTP]   bulk 인덱싱:    {} (총: {})", formatAvg(timingStats.bulkTime.get(), finalBulkCount), formatTotalTime(timingStats.bulkTime.get() / WORKER_COUNT))
         log.info("[LNBTP]   스텝 총합:      {} (총: {})", formatAvg(timingStats.stepTotalTime.get(), finalBulkCount), formatTotalTime(timingStats.stepTotalTime.get() / WORKER_COUNT))
 
-        // Forcemerge 비동기 실행
-        log.info("[LNBTP] ========== Forcemerge 시작 (비동기) ==========")
-        val forcemergeStartTime = System.currentTimeMillis()
-        launch(indexingDispatcher) {
-            try {
-                esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-                val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
-                log.info("[LNBTP] Forcemerge 완료: {}", formatElapsed(forcemergeElapsed))
-            } catch (e: Exception) {
-                val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
-                log.info("[LNBTP] Forcemerge 요청 완료 (ES 백그라운드 처리 중): {}, 경과: {}", e.message, formatElapsed(forcemergeElapsed))
-            }
-        }
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
+        // (original forcemerge code commented out)
+        // log.info("[LNBTP] ========== Forcemerge 시작 (비동기) ==========")
+        // val forcemergeStartTime = System.currentTimeMillis()
+        // launch(indexingDispatcher) {
+        //     try {
+        //         esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
+        //         val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
+        //         log.info("[LNBTP] Forcemerge 완료: {}", formatElapsed(forcemergeElapsed))
+        //     } catch (e: Exception) {
+        //         val forcemergeElapsed = System.currentTimeMillis() - forcemergeStartTime
+        //         log.info("[LNBTP] Forcemerge 요청 완료 (ES 백그라운드 처리 중): {}, 경과: {}", e.message, formatElapsed(forcemergeElapsed))
+        //     }
+        // }
 
         results["totalCount"] = totalCount
         results["processed"] = processedCount.get()
@@ -176,17 +178,11 @@ class LnbtpIndexingService(
     }
 
     fun forcemerge(): Map<String, Any> {
-        log.info("[LNBTP] forcemerge 시작 (백그라운드)...")
-        try {
-            esClient.indices().forcemerge { f -> f.index(INDEX_NAME).maxNumSegments(1L) }
-            log.info("[LNBTP] forcemerge 완료")
-        } catch (e: Exception) {
-            log.info("[LNBTP] forcemerge 요청 완료 (ES 백그라운드 처리 중): {}", e.message)
-        }
-
+        // forcemerge 비활성화: 집계 기반 워크로드에서 실효성 없음
         return mapOf(
             "action" to "forcemerge",
-            "success" to true
+            "status" to "disabled",
+            "reason" to "집계 기반 워크로드에서 실효성 없음"
         )
     }
 
@@ -318,16 +314,17 @@ class LnbtpIndexingService(
                         tradeCount.addAndGet(batchResult.tradeCount)
 
                         val elapsed = System.currentTimeMillis() - globalStartTime
-                        val percent = String.format("%.1f", globalProcessed * 100.0 / totalCount)
 
-                        log.info("[LNBTP] Worker-{} 벌크 #{}/{}: {}/{} ({}%) EMD={} ({}/{}), 건물 {}건, 실거래 {}건, 스텝 {}, 누적 {}",
-                            workerIndex,
-                            formatCount(globalBulkCount), formatCount(expectedBulks),
-                            formatCount(globalProcessed), formatCount(totalCount), percent,
-                            emdCode, emdIdx + 1, totalEmd,
-                            formatCount(batchResult.buildingCount),
-                            formatCount(batchResult.tradeCount),
-                            formatElapsed(stepTotalTime), formatTotalTime(elapsed))
+                        IndexingLogHelper.logBulkStep(log, IndexingLogHelper.BulkStepLog(
+                            tag = "LNBTP", workerIndex = workerIndex,
+                            bulkCount = globalBulkCount, expectedBulks = expectedBulks,
+                            processed = globalProcessed, totalCount = totalCount,
+                            emdCode = emdCode, emdIdx = emdIdx, totalEmd = totalEmd,
+                            summariesMs = batchResult.summariesMs, outlinesMs = batchResult.outlinesMs,
+                            tradesMs = batchResult.tradesMs, docsMs = batchResult.docsMs,
+                            bulkMs = bulkTime, stepTotalMs = stepTotalTime, accumulatedMs = elapsed,
+                            buildingCount = batchResult.buildingCount, tradeCount = batchResult.tradeCount
+                        ))
 
                         entityManager.clear()
                     }

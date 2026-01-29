@@ -37,6 +37,10 @@ spring:
     username: datahub
     password: Rsquare1!
 
+opensearch:
+  profile:
+    enabled: false
+
 server:
   port: 3000
 
