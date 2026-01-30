@@ -115,8 +115,7 @@ class Lbt1x16fmIndexingService(
             log.info("[LBT_1x16_FM] ========== 인덱싱 완료 ==========")
             log.info("[LBT_1x16_FM] 총 문서: {}건, 총 건물: {}건, 총 실거래: {}건, 벌크 {}회, 총 소요시간: {}",
                 formatCount(indexedCount.get()), formatCount(buildingCount.get()), formatCount(tradeCount.get()), formatCount(bulkCount.get()), formatTotalTime(elapsed))
-
-            ForcemergeHelper.launchAsync(esClient, indexingDispatcher, log, "LBT_1x16_FM", listOf(Lbt1x16fmDocument.INDEX_NAME))
+            log.info("[LBT_1x16_FM] ========== forcemerge는 수동 호출 필요 (PUT /api/es/lbt-1x16-fm/forcemerge) ==========")
         }
 
         return mapOf(
