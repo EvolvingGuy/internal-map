@@ -59,3 +59,9 @@
 - **SQL 참고**
 [토지 특성](./sql/land_characteristic.md)
 [행정 구역](./sql/boundary_region.md)
+
+## 레거시 참고 (archive)
+기존 ES 인덱스 구조 참고 시 (기본적으로 참조하지 않음):
+- **ES 문서**: [archive/docs/es/](../archive/docs/es/)
+- **ES 코드**: [archive/src/](../archive/src/)
+- **Docker**: [archive/docker/](../archive/docker/)

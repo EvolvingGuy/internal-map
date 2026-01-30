@@ -30,12 +30,12 @@ spring:
 
   elasticsearch:
     # 로컬 OpenSearch (Docker)
-    # uris: http://localhost:9200
+    uris: http://localhost:9200
 
     # 원격 OpenSearch (SSH 터널링 → AWS OpenSearch)
-    uris: https://localhost:50505
-    username: datahub
-    password: Rsquare1!
+    # uris: https://localhost:50505
+    # username: datahub
+    # password: Rsquare1!
 
 opensearch:
   profile:

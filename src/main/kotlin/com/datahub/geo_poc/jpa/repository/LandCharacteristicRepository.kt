@@ -1,6 +1,5 @@
 package com.datahub.geo_poc.jpa.repository
 
-import com.datahub.geo_poc.es.service.lnbt.LnbtIndexingService
 import com.datahub.geo_poc.jpa.entity.LandCharacteristic
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -49,7 +48,7 @@ interface LandCharacteristicRepository : JpaRepository<LandCharacteristic, Strin
      * EMD 코드로 Stream 조회 (LNBT 인덱싱용)
      * bjdong_cd 앞 8자리 기준 - idx_lc_bjdong_cd_left8 인덱스 활용
      */
-    @QueryHints(QueryHint(name = HINT_FETCH_SIZE, value = LnbtIndexingService.STREAM_SIZE))
+    @QueryHints(QueryHint(name = HINT_FETCH_SIZE, value = "1000"))
     @Query("SELECT l FROM LandCharacteristic l WHERE FUNCTION('left', l.bjdongCd, 8) = :emdCode AND l.pnu IS NOT NULL AND l.geometry IS NOT NULL AND l.center IS NOT NULL ORDER BY l.pnu")
     fun streamByEmdCode(@Param("emdCode") emdCode: String): Stream<LandCharacteristic>
 
