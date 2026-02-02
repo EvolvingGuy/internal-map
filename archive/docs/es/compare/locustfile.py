@@ -25,6 +25,7 @@ import sys
 import random
 import json
 
+from requests.auth import HTTPBasicAuth
 from locust import HttpUser, task, events
 
 # VS_FORCEMERGE_BENCH.py에서 쿼리 생성 로직 재사용
@@ -46,6 +47,7 @@ class ESAggUser(HttpUser):
 
     def on_start(self):
         self._counter = random.randint(0, 99999)
+        self.client.auth = HTTPBasicAuth("admin", "admin")
 
     @task
     def agg_query(self):

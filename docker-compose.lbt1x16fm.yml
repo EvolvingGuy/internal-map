@@ -5,7 +5,7 @@ services:
     environment:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true
-      - OPENSEARCH_JAVA_OPTS=-Xms6g -Xmx6g
+      - OPENSEARCH_JAVA_OPTS=-Xms8g -Xmx8g
     ports:
       - "9200:9200"
     volumes:
