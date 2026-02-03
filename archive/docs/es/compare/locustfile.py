@@ -26,7 +26,7 @@ import random
 import json
 
 from requests.auth import HTTPBasicAuth
-from locust import HttpUser, task, events
+from locust import HttpUser, task, events, between
 
 # VS_FORCEMERGE_BENCH.py에서 쿼리 생성 로직 재사용
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -44,6 +44,7 @@ AGG_LEVELS_MAP = {
 
 class ESAggUser(HttpUser):
     """OpenSearch 집계 쿼리 부하 사용자."""
+    wait_time = between(2, 5)  # 지도 서비스: 유저가 지도 이동 후 결과 확인 → 2~5초 간격
 
     def on_start(self):
         self._counter = random.randint(0, 99999)

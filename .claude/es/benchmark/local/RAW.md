@@ -63,3 +63,28 @@
 2026-02-02T10:13:38.808+09:00  INFO 24390 --- [geo_poc] [atcher-worker-6] d.g.e.l.Lbt17x2regionNofmIndexingService : [LBT_17x2_REGION_NOFM] 소급 문서: 6,600,788건, 건물: 757,298건, 실거래: 2,433,273건, 벌크 6,963회, 소요시간: 2.95m (176.7s)
 2026-02-02T10:13:38.809+09:00  INFO 24390 --- [geo_poc] [atcher-worker-6] d.g.e.l.Lbt17x2regionNofmIndexingService : [LBT_17x2_REGION_NOFM] 지역 lbt_17x2_region_nofm_51: 2,729,990건
 2026-02-02T10:13:38.809+09:00  INFO 24390 --- [geo_poc] [atcher-worker-6] d.g.e.l.Lbt17x2regionNofmIndexingService : [LBT_17x2_REGION_NOFM] 지역 lbt_17x2_region_nofm_52: 3,870,798건
+
+
+
+
+--- 원격지
+2026-02-02T15:47:04.892+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] Worker-8 완료: 4,131,207건, 벌크 4,395회, 1,530,992ms (1530.99s)
+2026-02-02T15:47:04.910+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] ========== 인덱싱 완료 ==========
+2026-02-02T15:47:04.910+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 총 문서: 39,668,369건, 총 건물: 6,210,982건, 총 실거래: 41,844,124건, 벌크 42,338회, 총 소요시간: 26.09m (1565.6s)
+2026-02-02T15:47:04.910+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_11: 903,166건
+2026-02-02T15:47:04.911+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_26: 714,165건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_27: 791,389건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_28: 669,158건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_29: 390,256건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_30: 292,049건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_31: 507,628건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_36: 206,484건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_41: 5,164,227건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_43: 2,395,086건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_44: 3,740,187건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_46: 5,899,035건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_47: 5,694,523건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_48: 4,819,948건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_50: 880,280건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_51: 2,729,990건
+2026-02-02T15:47:04.912+09:00  INFO 27515 --- [geo_poc] [tcher-worker-12] c.d.g.e.l.Lbt17x4regionFmIndexingService : [LBT_17x4_REGION_FM] 지역 lbt_17x4_region_fm_52: 3,870,798건
