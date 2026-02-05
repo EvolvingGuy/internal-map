@@ -63,13 +63,14 @@ class Lbt17x4regionNofmIndexingService(
         }
     }
 
-    fun reindex(): Map<String, Any> {
-        log.info("[LBT_17x4_REGION_NOFM] ========== 인덱싱 요청 (비동기, 17인덱스 x 4샤드, SD code) ==========")
+    fun reindex(disableRefresh: Boolean = false): Map<String, Any> {
+        val mode = if (disableRefresh) "refresh_interval=-1" else "default"
+        log.info("[LBT_17x4_REGION_NOFM] ========== 인덱싱 요청 (비동기, 17인덱스 x 4샤드, SD code, {}) ==========", mode)
 
         CoroutineScope(indexingDispatcher).launch {
             val startTime = System.currentTimeMillis()
 
-            ensureIndicesExist()
+            ensureIndicesExist(disableRefresh)
             log.info("[LBT_17x4_REGION_NOFM] ========== 인덱싱 시작 (17인덱스, 각 4샤드) ==========")
 
             val totalCount = landCharRepo.countIndexable()
@@ -114,7 +115,12 @@ class Lbt17x4regionNofmIndexingService(
 
             val elapsed = System.currentTimeMillis() - startTime
 
-            log.info("[LBT_17x4_REGION_NOFM] ========== 인덱싱 완료 ==========")
+            // refresh_interval 복원
+            if (disableRefresh) {
+                restoreRefreshInterval()
+            }
+
+            log.info("[LBT_17x4_REGION_NOFM] ========== 인덱싱 완료 ({}) ==========", mode)
             log.info("[LBT_17x4_REGION_NOFM] 총 문서: {}건, 총 건물: {}건, 총 실거래: {}건, 벌크 {}회, 총 소요시간: {}",
                 formatCount(indexedCount.get()), formatCount(buildingCount.get()), formatCount(tradeCount.get()), formatCount(bulkCount.get()), formatTotalTime(elapsed))
             regionCounts.toSortedMap().forEach { (sd, count) ->
@@ -126,6 +132,7 @@ class Lbt17x4regionNofmIndexingService(
             "action" to "reindex",
             "status" to "started",
             "async" to true,
+            "refreshInterval" to if (disableRefresh) "-1" else "1s",
             "indexPattern" to Lbt17x4regionNofmDocument.allIndexPattern(),
             "indexCount" to Lbt17x4regionNofmDocument.INDEX_COUNT,
             "shardsPerIndex" to Lbt17x4regionNofmDocument.SHARD_COUNT
@@ -386,7 +393,7 @@ class Lbt17x4regionNofmIndexingService(
             buildingAmountPerM2 = entity.buildingAmountPerNlaM2, landAmountPerM2 = entity.landAmountPerM2)
     }
 
-    private fun ensureIndicesExist() {
+    private fun ensureIndicesExist(disableRefresh: Boolean = false) {
         for (sd in Lbt17x4regionNofmDocument.SD_CODES) {
             val indexName = Lbt17x4regionNofmDocument.indexName(sd)
             val exists = try { esClient.indices().exists { e -> e.index(indexName) }.value() } catch (e: Exception) { false }
@@ -394,7 +401,13 @@ class Lbt17x4regionNofmIndexingService(
 
             esClient.indices().create { c ->
                 c.index(indexName)
-                    .settings { s -> s.numberOfShards("${Lbt17x4regionNofmDocument.SHARD_COUNT}").numberOfReplicas("0").mapping { m -> m.nestedObjects { n -> n.limit(100000L) } } }
+                    .settings { s ->
+                        s.numberOfShards("${Lbt17x4regionNofmDocument.SHARD_COUNT}")
+                            .numberOfReplicas("0")
+                            .mapping { m -> m.nestedObjects { n -> n.limit(100000L) } }
+                        if (disableRefresh) s.refreshInterval { t -> t.time("-1") }
+                        s
+                    }
                     .mappings { m ->
                         m.properties("pnu") { pp -> pp.keyword { it } }
                             .properties("sd") { pp -> pp.keyword { k -> k.eagerGlobalOrdinals(true) } }
@@ -405,8 +418,20 @@ class Lbt17x4regionNofmIndexingService(
                             .properties("trades") { pp -> tradesNestedMapping(pp) }
                     }
             }
-            log.info("[LBT_17x4_REGION_NOFM] 인덱스 생성: {} (샤드: {})", indexName, Lbt17x4regionNofmDocument.SHARD_COUNT)
+            val refreshInfo = if (disableRefresh) ", refresh_interval=-1" else ""
+            log.info("[LBT_17x4_REGION_NOFM] 인덱스 생성: {} (샤드: {}{})", indexName, Lbt17x4regionNofmDocument.SHARD_COUNT, refreshInfo)
         }
+    }
+
+    private fun restoreRefreshInterval() {
+        log.info("[LBT_17x4_REGION_NOFM] refresh_interval 복원 시작 (→ 1s)")
+        for (sd in Lbt17x4regionNofmDocument.SD_CODES) {
+            val indexName = Lbt17x4regionNofmDocument.indexName(sd)
+            esClient.indices().putSettings { s ->
+                s.index(indexName).settings { st -> st.refreshInterval { t -> t.time("1s") } }
+            }
+        }
+        log.info("[LBT_17x4_REGION_NOFM] refresh_interval 복원 완료 (17개 인덱스)")
     }
 
     private fun landMapping(p: org.opensearch.client.opensearch._types.mapping.Property.Builder) =

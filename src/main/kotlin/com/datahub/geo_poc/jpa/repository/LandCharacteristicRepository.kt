@@ -49,7 +49,11 @@ interface LandCharacteristicRepository : JpaRepository<LandCharacteristic, Strin
      * bjdong_cd 앞 8자리 기준 - idx_lc_bjdong_cd_left8 인덱스 활용
      */
     @QueryHints(QueryHint(name = HINT_FETCH_SIZE, value = "1000"))
-    @Query("SELECT l FROM LandCharacteristic l WHERE FUNCTION('left', l.bjdongCd, 8) = :emdCode AND l.pnu IS NOT NULL AND l.geometry IS NOT NULL AND l.center IS NOT NULL ORDER BY l.pnu")
+    @Query("""
+        SELECT l 
+        FROM LandCharacteristic l 
+        WHERE FUNCTION('left', l.bjdongCd, 8) = :emdCode AND l.pnu IS NOT NULL AND l.geometry IS NOT NULL AND l.center IS NOT NULL ORDER BY l.pnu
+    """)
     fun streamByEmdCode(@Param("emdCode") emdCode: String): Stream<LandCharacteristic>
 
     /**
