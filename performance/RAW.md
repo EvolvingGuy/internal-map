@@ -1,0 +1,6 @@
+2026-02-06T13:47:10.707+09:00  INFO 52356 --- [geo_poc] [atcher-worker-8] c.d.g.e.l.L4x4nofmIndexingService        : [L_4x4_NOFM] ========== 인덱싱 완료 ==========
+2026-02-06T13:47:10.707+09:00  INFO 52356 --- [geo_poc] [atcher-worker-8] c.d.g.e.l.L4x4nofmIndexingService        : [L_4x4_NOFM] 총 문서: 39,668,369건, 건물있는 문서: 5,653,492건, 실거래있는 문서: 5,365,649건, 벌크 42,338회, 총 소요시간: 27.51m (1650.4s)
+2026-02-06T13:47:10.707+09:00  INFO 52356 --- [geo_poc] [atcher-worker-8] c.d.g.e.l.L4x4nofmIndexingService        : [L_4x4_NOFM] 파티션 l_4x4_nofm_1: 9,919,172건
+2026-02-06T13:47:10.707+09:00  INFO 52356 --- [geo_poc] [atcher-worker-8] c.d.g.e.l.L4x4nofmIndexingService        : [L_4x4_NOFM] 파티션 l_4x4_nofm_2: 9,916,515건
+2026-02-06T13:47:10.707+09:00  INFO 52356 --- [geo_poc] [atcher-worker-8] c.d.g.e.l.L4x4nofmIndexingService        : [L_4x4_NOFM] 파티션 l_4x4_nofm_3: 9,916,007건
+2026-02-06T13:47:10.707+09:00  INFO 52356 --- [geo_poc] [atcher-worker-8] c.d.g.e.l.L4x4nofmIndexingService        : [L_4x4_NOFM] 파티션 l_4x4_nofm_4: 9,916,675건

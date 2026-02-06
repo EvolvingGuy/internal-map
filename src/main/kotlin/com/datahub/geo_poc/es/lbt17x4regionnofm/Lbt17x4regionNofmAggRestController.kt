@@ -17,24 +17,27 @@ class Lbt17x4regionNofmAggRestController(
     @GetMapping("/sd")
     fun aggregateSd(
         @ModelAttribute bbox: BBoxRequest,
-        @ModelAttribute filterRequest: LcAggFilterRequest
+        @ModelAttribute filterRequest: LcAggFilterRequest,
+        @RequestParam(required = false, defaultValue = "true") requestCache: Boolean
     ): ResponseEntity<LcAggResponse> {
-        return ResponseEntity.ok(aggService.aggregateBySd(bbox, filterRequest.toFilter()))
+        return ResponseEntity.ok(aggService.aggregateBySd(bbox, filterRequest.toFilter(), requestCache))
     }
 
     @GetMapping("/sgg")
     fun aggregateSgg(
         @ModelAttribute bbox: BBoxRequest,
-        @ModelAttribute filterRequest: LcAggFilterRequest
+        @ModelAttribute filterRequest: LcAggFilterRequest,
+        @RequestParam(required = false, defaultValue = "true") requestCache: Boolean
     ): ResponseEntity<LcAggResponse> {
-        return ResponseEntity.ok(aggService.aggregateBySgg(bbox, filterRequest.toFilter()))
+        return ResponseEntity.ok(aggService.aggregateBySgg(bbox, filterRequest.toFilter(), requestCache))
     }
 
     @GetMapping("/emd")
     fun aggregateEmd(
         @ModelAttribute bbox: BBoxRequest,
-        @ModelAttribute filterRequest: LcAggFilterRequest
+        @ModelAttribute filterRequest: LcAggFilterRequest,
+        @RequestParam(required = false, defaultValue = "true") requestCache: Boolean
     ): ResponseEntity<LcAggResponse> {
-        return ResponseEntity.ok(aggService.aggregateByEmd(bbox, filterRequest.toFilter()))
+        return ResponseEntity.ok(aggService.aggregateByEmd(bbox, filterRequest.toFilter(), requestCache))
     }
 }

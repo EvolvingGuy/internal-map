@@ -32,24 +32,25 @@ class Lbt17x4regionNofmAggregationService(
         const val EMD_SIZE = 5000
     }
 
-    fun aggregateBySd(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
-        return aggregate("sd", SD_SIZE, bbox, filter)
+    fun aggregateBySd(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter(), requestCache: Boolean = true): LcAggResponse {
+        return aggregate("sd", SD_SIZE, bbox, filter, requestCache)
     }
 
-    fun aggregateBySgg(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
-        return aggregate("sgg", SGG_SIZE, bbox, filter)
+    fun aggregateBySgg(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter(), requestCache: Boolean = true): LcAggResponse {
+        return aggregate("sgg", SGG_SIZE, bbox, filter, requestCache)
     }
 
-    fun aggregateByEmd(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter()): LcAggResponse {
-        return aggregate("emd", EMD_SIZE, bbox, filter)
+    fun aggregateByEmd(bbox: BBoxRequest, filter: LcAggFilter = LcAggFilter(), requestCache: Boolean = true): LcAggResponse {
+        return aggregate("emd", EMD_SIZE, bbox, filter, requestCache)
     }
 
-    private fun aggregate(field: String, size: Int, bbox: BBoxRequest, filter: LcAggFilter): LcAggResponse {
+    private fun aggregate(field: String, size: Int, bbox: BBoxRequest, filter: LcAggFilter, requestCache: Boolean = true): LcAggResponse {
         val startTime = System.currentTimeMillis()
 
         val response = esClient.search({ s ->
             s.index(INDEX_PATTERN)
                 .size(0)
+                .requestCache(requestCache)
                 .profile(profileEnabled)
                 .query { q ->
                     q.bool { bool ->
